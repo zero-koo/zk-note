@@ -261,6 +261,8 @@ export default defineSchema({
 });
 ```
 
+> **주의 — `notes.content` 의존성**: 위 스키마는 "마크다운 = source of truth"(§10.1 안 A) 전제다. `prosemirror-sync`(안 B)를 채택하면 노트 본문이 `notes.content`를 떠나 컴포넌트 테이블로 이동하므로, `content` 필드·`search_notes` 인덱스가 "스냅샷에서 추출한 텍스트" 기반으로 재설계된다. PoC 결정(§10.1) 전까지 본 스키마는 잠정안.
+
 ---
 
 ## 4. 핵심 데이터 흐름
@@ -552,24 +554,35 @@ Convex Auth 세션 확인
 
 ---
 
-## 9. 오프라인 전략
+## 9. 오프라인 전략 (온라인 우선)
 
-Convex 클라이언트는 기본적으로 낙관적 업데이트(Optimistic Updates)를 지원합니다.
+Convex는 현재 **온라인 우선** 모델이다. 기본 제공 오프라인은 세션 메모리 캐시 기반이라 **앱 완전 종료 후 재진입 시 오프라인 작성분이 유실될 수 있다**. 영구 오프라인을 제공하는 Convex 공식 sync 엔진(`curvilinear`)은 2026 현재 **alpha**(정합성 미해결, 멀티탭/마이그레이션 미지원)라 데이터가 생명인 노트 앱 MVP에는 부적합하다.
+
+### 9.1 MVP — 온라인 우선 + 데이터 유실 안전망
 
 ```
-오프라인 상태
-  │
-  ▼
-useMutation 호출 → Convex 클라이언트 로컬 캐시에 낙관적 반영
-  │                (UI는 즉시 업데이트)
-  ▼
-네트워크 복구 → Convex 자동 재연결 + 큐된 mutation 순서대로 실행
-  │
-  ▼
-Last-Write-Wins: updatedAt 타임스탬프 비교, 나중 것으로 덮어씀
+온라인: useMutation → 낙관적 반영(UI 즉시) → Convex 저장 → 실시간 동기화
+네트워크 단절(짧음): 낙관적 반영 유지 → 복구 시 큐된 mutation 순서 실행
+앱 종료(미동기 상태): ───────────────────────────────────────┐
+                                                              ▼
+  미동기 에디터 버퍼를 로컬에 즉시 영속화
+    - 데스크탑: Tauri FS / SQLite 플러그인
+    - 웹/PWA: IndexedDB
+                                                              │
+  재진입 시 미동기 버퍼 복원 → Convex로 재전송 ◀──────────────┘
 ```
 
-> **제약**: Convex의 오프라인 지원은 현재 세션 내 캐시 기반. 앱을 완전히 종료하고 재진입 시 오프라인에서 작성한 내용은 유실될 수 있음. Phase 2에서 IndexedDB 기반 영구 오프라인 캐시 검토.
+> **MVP 안전망의 범위**: 풀 오프라인 sync를 구현하지 않는다. "방금 친 내용을 오프라인에서 종료해 날리는" 최악의 실패만 막는 얇은 버퍼 레이어다 — 풀 오프라인 엔진보다 훨씬 작고, 곧 나올 공식 엔진과 충돌하지 않는다.
+
+### 9.2 Phase 2 — 공식 sync 엔진 채택
+
+Convex Object Sync Engine / `curvilinear`가 GA 되면 영구 오프라인(IndexedDB→SQLite, 서버 reconciliation)을 그것으로 전환한다. **직접 오프라인 엔진을 만들지 않는다**(공식판 출시 시 폐기될 코드).
+
+### 9.3 충돌 해결
+
+- 기본: Last-Write-Wins(`updatedAt` 비교).
+- 단, **노트 본문**은 통짜 마크다운 문자열이라 LWW 덮어쓰기 시 동시편집분이 통째로 유실된다. step 단위 병합(`prosemirror-sync`) 채택을 §10에서 별도 검토.
+- 태스크는 필드 단위로 작아 LWW 허용(미결: detail 필드 동시수정 — REQUIREMENTS §10-3).
 
 ---
 
@@ -596,6 +609,20 @@ TipTap (ProseMirror JSON)
 Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로드
 ```
 
+### 10.1 노트 저장 source of truth — 갈림길 (PoC에서 선결)
+
+노트 동시편집 LWW 유실(§9.3)을 막는 정공법은 Convex 공식 컴포넌트 **`prosemirror-sync`**다. 노트는 ProseMirror 문서 자체이므로, 통짜 문자열을 덮어쓰는 대신 **step 단위 OT + 스냅샷으로 병합**한다(production 유지보수, Apache-2.0, TipTap 확장으로 연결). 단 이를 쓰면 노트 본문이 `notes.content` 마크다운 문자열을 떠나 컴포넌트가 관리하는 스냅샷+steps가 된다 — 아래 둘 중 하나를 의식적으로 택해야 한다.
+
+| | A. 마크다운 = source (현 설계) | B. `prosemirror-sync` = source |
+|---|---|---|
+| 저장 | `notes.content`에 표준 마크다운 | 컴포넌트 스냅샷+steps, 마크다운은 Export 시 파생 |
+| 동시편집 | LWW 통짜 덮어쓰기(유실 위험) | step OT 병합(유실 없음), 향후 실시간 협업 기반 |
+| 검색(§3) | `content` 직접 full-text | 스냅샷에서 텍스트 추출해 별도 검색 필드 유지 필요 |
+| 단순성 | 높음(이식성·외부 .md 호환 직관적) | 낮음(컴포넌트 데이터 모델에 종속) |
+| 제약 | — | 문서 1MB 미만, Yjs 불가, **오프라인 편집 미지원(예정)** |
+
+> **PoC 선결 사항**: 에디터 PoC에서 A/B를 가장 먼저 결정한다. B를 택하면 §3 스키마(노트 본문 저장 위치), 검색 인덱스, Export(§10), 오프라인 버퍼(§9.1)가 모두 컴포넌트 데이터 모델 위에서 다시 그려진다. (REQUIREMENTS §10-9 참고)
+
 ---
 
 ## 11. 주요 기술 결정 및 근거
@@ -604,7 +631,7 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 | -------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | **데스크탑 셸**            | **Tauri (vs Electron)**                            | 번들 사이즈 (~3MB → 앱 < 30MB vs Electron 150MB+), 메모리 가벼움, Rust 셸로 향후 OS 통합(터미널 등) 안전하게 확장 |
 | **플랫폼 코드 공유**       | **단일 React 코드 + `lib/platform/` 추상화**       | 데스크탑/웹/모바일 ≥ 95% 코드 공유. UI는 플랫폼 무관, 분기는 한 곳에 격리                                         |
-| **TanStack Start 모드**    | **SPA 모드 (Tauri WebView 호환)**                  | Tauri 환경에는 Node 서버 없음. 웹 빌드는 동일 코드를 SSR/SPA 중 선택 가능                                         |
+| **TanStack Start 모드**    | **SPA 모드 (Tauri) + selective SSR (웹 공유 페이지)** | Start 정식 SPA 모드(`spa.enabled` + prerender)로 Node 서버 없는 Tauri WebView에서 동작(공개 Tauri 2.0+Start 템플릿으로 검증). 웹 빌드에서는 라우트별 SSR로 향후 공개 노트 공유 페이지만 SEO 가능. 노트 공유 미계획 시 TanStack Router+Vite로 대체 가능(이주 비용 낮음) |
 | 에디터 내부 포맷           | ProseMirror JSON (메모리) + Markdown (저장)        | 편집 성능 vs 호환성 분리                                                                                          |
 | 태스크-노트 연결           | HTML 주석으로 taskId 보존                          | 마크다운 호환성 깨지지 않으면서 ID 유지                                                                           |
 | 실시간 동기화              | Convex WebSocket                                   | 별도 구현 없이 실시간 반영                                                                                        |
@@ -621,9 +648,10 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 2. **양방향 링크 resolve**: `[[노트이름]]` → noteId 변환 시점 (저장 시 vs 렌더 시)
 3. **Daily Note 템플릿**: 사용자 정의 템플릿 저장 위치 (users.settings vs 별도 템플릿 테이블)
 4. **태스크 상세(detail) 에디터**: 별도 TipTap 인스턴스 vs 간단한 textarea
-5. **오프라인 Phase 2**: IndexedDB 캐시 레이어 설계
+5. **영구 오프라인(Phase 2)**: 직접 IndexedDB 캐시를 만들기보다 Convex 공식 sync 엔진(`curvilinear`) alpha 졸업 시점에 맞춰 채택. MVP는 미동기 버퍼 로컬 보존으로 한정(§9)
 6. **Tauri OAuth 콜백 패턴**: deep link(`zknote://`) vs 임시 localhost 서버 — Convex Auth 권장 패턴 검증 후 확정 (8.3 참고)
-7. **TanStack Start 라우터 호환성**: Tauri WebView(`tauri://localhost`)에서 파일 기반 라우팅이 정상 동작하는지 PoC 필요
+7. **Convex × Tauri WebView 연결성**: Start SPA 모드의 Tauri 동작은 공개 템플릿으로 검증됨(라우팅은 비위험). 실제 PoC 위험은 **Convex React Client의 WebSocket이 Tauri WebView(`tauri://localhost`) origin에서 유지되는가** — `tauri.conf.json` CSP `connect-src`에 Convex WS 엔드포인트 허용 필요
+11. **노트 source of truth (A 마크다운 vs B `prosemirror-sync`)**: §10.1 갈림길. 채택 시 스키마·검색·Export·오프라인 버퍼 전반 재설계 — 에디터 PoC에서 최우선 결정
 8. **Tauri 자동 업데이트 호스팅**: 업데이트 manifest 호스팅 위치 (Convex Storage / GitHub Releases / 별도 정적 호스팅)
 9. **데스크탑 코드 서명**: macOS 공증 / Windows 코드 서명 적용 시점 (개인 사용 단계에서는 생략)
 10. **모바일 PWA 한계**: iOS Safari의 PWA 제약 (오프라인, 설치 UX) 파악 후 native 래퍼 필요 시점 결정
@@ -632,12 +660,13 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 
 ## 13. 다음 단계
 
-1. **Tauri PoC** (모든 결정의 선결 조건):
-   - Tauri + TanStack Start + Convex React Client 동작 검증
-   - Tauri WebView 환경에서 라우팅 / WebSocket 정상 동작 확인
+1. **Tauri PoC** (모든 결정의 선결 조건) — 공개 Tauri 2.0 + TanStack Start 템플릿에서 시작해 통합 삽질 생략:
+   - **Convex React Client WebSocket이 Tauri WebView(`tauri://localhost`)에서 실시간 구독을 유지하는가** (CSP `connect-src` 설정 포함) ← 핵심 위험
+   - Start SPA 모드 prerender 산출물이 Tauri에서 라우팅 정상 동작 확인
    - Google OAuth 데스크탑 콜백 패턴 결정 (8.3)
 2. **에디터 PoC**:
-   - `tiptap-markdown` 라이브러리가 커스텀 노드 직렬화를 지원하는지
-   - TaskNode / WikiLink / SlashCommands 의 마크다운 라운드트립
+   - **노트 source of truth A/B 결정 (§10.1)** ← 검색·Export·오프라인이 여기 종속되므로 최우선
+   - A 선택 시: `tiptap-markdown`이 커스텀 노드(TaskNode/WikiLink) 직렬화를 지원하는지, 마크다운 라운드트립 검증
+   - B 선택 시: `prosemirror-sync` TipTap 연동 + 마크다운 Export 파생 검증
 3. Phase 1 MVP 구현 시작
    - 권장 순서: Tauri 셸 셋업 → 플랫폼 추상화 → Convex 스키마 → 인증 → 에디터 기본 → Daily Note → 태스크 연동 → 자동 업데이트 채널

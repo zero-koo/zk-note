@@ -58,6 +58,8 @@
 | 인증 | Google OAuth (소셜 로그인 전용) |
 | 모바일 배포 | PWA |
 
+> **TanStack Start 선택 근거**: Start는 정식 **SPA 모드**(`spa: { enabled: true }` + 빌드 타임 prerender)를 지원해 Node 서버 없는 Tauri WebView에서 정상 동작한다(Tauri 2.0 + Start 공개 템플릿으로 검증됨). 동시에 웹 빌드에서는 **라우트별 SSR(selective SSR)**이 가능해, 향후 "읽기 전용 노트 공유" 같은 공개 페이지만 SSR로 제공하면서 앱 본체는 SPA로 유지할 수 있다 — 단일 코드베이스로 데스크탑(SPA)·웹(SPA+공유 SSR)을 모두 커버. 노트 공유 계획이 없다면 더 단순한 TanStack Router + Vite로도 대체 가능하며, Start → Router 이주 비용은 낮다.
+
 ---
 
 ## 5. 데이터 아키텍처
@@ -78,11 +80,14 @@
 - **Export**: 노트를 `.md` 파일로 내보내기 가능 (단일 노트 / 폴더 전체)
 - 로컬 `.md` 파일 실시간 동기화는 불필요
 
-### 5.2 오프라인 전략
+### 5.2 오프라인 전략 (온라인 우선)
 
-- Convex 클라이언트 캐시 활용한 오프라인 읽기/쓰기
-- 온라인 복귀 시 **자동으로 클라우드에 동기화**
-- **충돌 해결**: Last-Write-Wins (나중에 수정된 버전으로 덮어씀)
+Convex는 현재 **온라인 우선(online-first)** 모델이다. 영구 오프라인(앱 종료 후 재진입 시 데이터 보존)은 공식 sync 엔진이 아직 alpha 단계(`curvilinear`)이므로 MVP에서는 보장하지 않는다.
+
+- **MVP**: 온라인 우선 + Convex 낙관적 업데이트로 짧은 네트워크 단절 내성. 온라인 복귀 시 자동 동기화.
+- **데이터 유실 안전망(MVP 포함)**: 미동기화 에디터 버퍼를 로컬에 즉시 저장(데스크탑 Tauri FS/SQLite, 웹 IndexedDB)하여 오프라인 상태에서 앱을 종료해도 **방금 작성한 내용은 유실되지 않음**. 재진입 시 미동기 버퍼를 복원·재전송.
+- **Phase 2**: Convex 공식 sync 엔진(Object Sync Engine / `curvilinear`)이 GA 되면 그것으로 영구 오프라인 전환(직접 구현하지 않음).
+- **충돌 해결**: 기본은 Last-Write-Wins(`updatedAt` 비교). 단, 노트 본문은 LWW 통짜 덮어쓰기 시 데이터 유실 위험이 있어 별도 전략 검토(아키텍처 문서 §10 `prosemirror-sync` 결정 참고).
 
 ---
 
@@ -247,7 +252,9 @@ Task (독립 DB)
 5. **팀/워크스페이스**: 향후 팀 기능을 추가할 계획이 있는가?
 6. **데스크탑 OAuth 콜백 방식**: Tauri 환경에서 Google OAuth 리디렉션을 어떻게 처리할 것인가? — 커스텀 URL 스킴(`zknote://`) vs 임시 로컬 서버(`http://localhost:포트`) (Convex Auth가 권장하는 패턴 검증 필요)
 7. **데스크탑 코드 서명/공증**: macOS 공증(Notarization) 및 Windows 코드 서명을 MVP 시점에 적용할 것인가? (개인 사용 단계에서는 생략 가능)
-8. **TanStack Start의 SSR**: Tauri WebView 환경에서는 SSR이 부적합 — 클라이언트 전용 빌드로 분기할지, SPA 모드로 통합할지 결정 필요
+8. ~~**TanStack Start의 SSR**~~ → 해결됨: Start **SPA 모드**로 Tauri 빌드, 웹은 selective SSR. 실제 검증할 PoC 위험은 SSR이 아니라 **Convex WebSocket이 Tauri WebView(`tauri://localhost`) origin/CSP에서 유지되는가**임 (아키텍처 §13 참고)
+9. **노트 본문 동시편집 유실**: Last-Write-Wins 통짜 덮어쓰기 대신 `prosemirror-sync`(step 단위 OT 병합) 채택 여부 — 채택 시 "마크다운이 source of truth" 원칙이 "Export 시 파생"으로 바뀜 (아키텍처 §10 트레이드오프 참고)
+10. **영구 오프라인 시점**: Convex 공식 sync 엔진(`curvilinear`) alpha 졸업 시점에 맞춰 Phase 2 도입할지, 그 전까지 미동기 버퍼 로컬 보존으로 버틸지
 
 ---
 
@@ -258,7 +265,7 @@ Task (독립 DB)
 | 에디터 응답성 | 타이핑 지연 < 16ms (60fps) |
 | 동기화 지연 | 온라인 상태 기준 < 2초 |
 | 검색 응답 | < 500ms |
-| 오프라인 지원 | 핵심 기능 (읽기/쓰기) 오프라인에서 동작 |
+| 오프라인 지원 | **온라인 우선** + 짧은 네트워크 단절 내성(낙관적 업데이트). 종료/재시작 후 보존은 Phase 2(공식 sync 엔진). 미동기 에디터 버퍼는 MVP부터 로컬 보존 |
 | 마크다운 호환성 | 생성된 `.md` 파일이 GitHub, Obsidian, VS Code에서 정상 렌더링 |
 | **데스크탑 콜드 스타트** | < 2초 (Tauri 셸 기동 + 첫 렌더) |
 | **데스크탑 번들 사이즈** | macOS `.app` < 30MB, Windows `.msi` < 30MB |
