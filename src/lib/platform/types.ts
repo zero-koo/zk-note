@@ -40,8 +40,9 @@ export interface PlatformAdapter {
 
   /**
    * Kick off a platform-appropriate OAuth flow.
-   * - Desktop (Tauri): deep-link (`zknote://`) or localhost-callback pattern.
-   *   See ARCHITECTURE §8.3 — pattern not yet finalised (REQUIREMENTS open #6).
+   * - Desktop (Tauri): temporary loopback server on `http://127.0.0.1:<port>`
+   *   (ADR-0004). The auth page MUST open in the system browser, never in the
+   *   WebView — Google rejects WKWebView with `disallowed_useragent`.
    * - Web: redirect to provider.
    */
   startOAuthFlow(provider: "google"): Promise<void>;

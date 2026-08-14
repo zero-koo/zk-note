@@ -543,14 +543,34 @@ Convex Auth 세션 확인
 
 ### 8.3 데스크탑 환경 (Tauri)
 
-브라우저 redirect를 사용할 수 없으므로 두 가지 패턴 중 선택:
+브라우저 redirect를 그대로 쓸 수 없으므로 콜백을 앱으로 되돌릴 방법이 필요하다.
 
-| 패턴                                                     | 동작                                                                                                | 트레이드오프                                                         |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| **A. 커스텀 URL 스킴** (`zknote://callback`)             | OS 기본 브라우저에서 OAuth → 완료 시 `zknote://` URL로 앱 깨움 → Tauri deep link 핸들러가 토큰 처리 | OS 등록 필요(macOS Info.plist, Windows registry) — Tauri가 자동 처리 |
-| **B. 임시 로컬 서버** (`http://localhost:포트/callback`) | Tauri 셸이 임시 HTTP 서버 기동 → Google이 localhost로 redirect → 코드 수신 후 서버 종료             | 포트 충돌 / 방화벽 가능성, 구현 단순                                 |
+> **결정됨 (2026-08-14, ADR-0004): 임시 루프백 서버 (`http://127.0.0.1:<port>/callback`).**
+> 커스텀 URL 스킴 딥링크는 채택하지 않는다 — Tauri 딥링크는 **macOS에서 런타임 등록이 불가능**하고
+> 번들 + `/Applications` 설치를 요구해, macOS 우선 + 서명 생략인 현재 개발 흐름으로는 검증조차 안 된다.
+> Google도 데스크탑에 루프백을 권장하며 커스텀 스킴은 "no longer supported"로 쓴다.
+> 근거와 미확인 항목은 `docs/adr/0004-desktop-oauth-uses-loopback-callback.md` 및
+> `docs/research/tauri-desktop-oauth-callback.md` 참고.
 
-> **결정 보류**: Convex Auth가 데스크탑 환경에서 권장하는 패턴 검증 후 결정 (REQUIREMENTS 미결 #6 참고). 우선 패턴 A를 기본으로 PoC 진행.
+흐름:
+
+```
+앱 → 임시 루프백 서버 기동 (Rust 측, 임의 포트)
+  → 시스템 기본 브라우저로 인증 URL 열기 (plugin-opener)
+  → 사용자가 브라우저에서 로그인
+  → Convex가 http://127.0.0.1:<port>/callback?code=... 로 302
+  → Rust가 code 수신 → 이벤트로 프론트에 전달 → 서버 종료
+  → signIn(provider, { code }) 재호출 → 토큰이 Convex 클라이언트에 세팅
+```
+
+**반드시 지킬 것 세 가지** (상세는 ADR-0004):
+
+- **WebView 안에서 Google 로그인 화면을 열지 않는다.** WKWebView는 Google이 `disallowed_useragent`로
+  거부하며, RFC 8252 §8.12도 embedded user-agent를 금지한다. 반드시 시스템 브라우저를 연다.
+- **`callbacks.redirect`를 재정의한다.** Convex Auth 기본 구현은 `SITE_URL` 접두사 매칭이라 임의 포트를
+  거부한다. open redirect 표면이므로 화이트리스트로만 쓴다.
+- **CSP에 `http:`를 열지 않는다.** 루프백 소켓은 Rust가 소유하고 결과는 이벤트로 오므로 WebView는
+  `http://127.0.0.1`로 통신하지 않는다.
 
 ---
 
@@ -649,7 +669,7 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 3. **Daily Note 템플릿**: 사용자 정의 템플릿 저장 위치 (users.settings vs 별도 템플릿 테이블)
 4. **태스크 상세(detail) 에디터**: 별도 TipTap 인스턴스 vs 간단한 textarea
 5. **영구 오프라인(Phase 2)**: 직접 IndexedDB 캐시를 만들기보다 Convex 공식 sync 엔진(`curvilinear`) alpha 졸업 시점에 맞춰 채택. MVP는 미동기 버퍼 로컬 보존으로 한정(§9)
-6. **Tauri OAuth 콜백 패턴**: deep link(`zknote://`) vs 임시 localhost 서버 — Convex Auth 권장 패턴 검증 후 확정 (8.3 참고)
+6. ~~**Tauri OAuth 콜백 패턴**~~ → **해결됨 (2026-08-14, ADR-0004)**: 임시 루프백 서버(`http://127.0.0.1:<port>`). Tauri 딥링크가 macOS 런타임 등록 불가라 현 개발 흐름으로 검증 불가능한 것이 결정적. Google·RFC 8252도 데스크탑에 루프백을 권장
 7. ~~**Convex × Tauri WebView 연결성**~~ → **해결됨 (2026-08-14, ADR-0001)**: 빌드된 앱의 `tauri://localhost` origin + 현행 CSP에서 WebSocket이 0.7초 만에 연결되고 약 4분간 재연결 0회로 유지됨. Convex는 WS 핸드셰이크에서 Origin을 검사하지 않음. **CSP 수정 불필요.** 측정 방법과 함정은 `docs/adr/0001-convex-websocket-over-tauri-webview.md` 참고
 11. ~~**노트 source of truth (A 마크다운 vs B `prosemirror-sync`)**~~ → **해결됨 (2026-08-14, ADR-0003)**: A 채택. 왕복 손실 0건 실측, B의 오프라인 미지원 제약이 로드맵과 충돌. 스키마·검색·Export는 현 설계 유지
 8. **Tauri 자동 업데이트 호스팅**: 업데이트 manifest 호스팅 위치 (Convex Storage / GitHub Releases / 별도 정적 호스팅)
@@ -663,7 +683,7 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 1. ~~**Tauri PoC**~~ — 핵심 위험은 해소됨:
    - ~~Convex React Client WebSocket이 Tauri WebView(`tauri://localhost`)에서 실시간 구독을 유지하는가~~ → **유지된다 (2026-08-14, ADR-0001).** CSP 수정 불필요
    - ~~Start SPA 모드 prerender 산출물이 Tauri에서 라우팅 정상 동작 확인~~ → 확인됨. 빌드된 앱에서 SPA 셸이 뜨고 클라이언트 라우팅으로 딥링크 라우트까지 도달함
-   - **남음** — Google OAuth 데스크탑 콜백 패턴 결정 (8.3). 이건 돌려보는 문제가 아니라 Convex Auth 권장 패턴을 읽어 정하는 문제
+   - ~~Google OAuth 데스크탑 콜백 패턴 결정 (8.3)~~ → **루프백으로 확정 (2026-08-14, ADR-0004)**
    - **남음** — 인증 토큰이 붙은 뒤에도 WS 동작이 같은지. 이번 측정은 미인증 상태로만 했다(ADR-0001 "뒤집어야 할 신호")
 2. ~~**에디터 PoC**~~ — 완료 (2026-08-14, ADR-0003):
    - ~~노트 source of truth A/B 결정 (§10.1)~~ → **A 채택**

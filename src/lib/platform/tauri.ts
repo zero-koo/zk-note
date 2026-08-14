@@ -23,14 +23,15 @@ export function createTauriAdapter(): PlatformAdapter {
     kind: "tauri",
 
     /**
-     * Desktop OAuth flow via deep-link or localhost callback.
-     * Pattern not yet finalised — see ARCHITECTURE §8.3 and
-     * REQUIREMENTS open-question #6.
+     * Desktop OAuth via a temporary loopback server (ADR-0004).
+     * Open the auth URL in the SYSTEM browser via plugin-opener — opening it in
+     * this WebView makes Google reject it as `disallowed_useragent`.
+     * Requires `callbacks.redirect` in convex/auth.ts to allow 127.0.0.1 ports.
      */
     async startOAuthFlow(_provider: "google"): Promise<void> {
       throw new Error(
         "startOAuthFlow: Tauri desktop OAuth is not yet implemented. " +
-          "See ARCHITECTURE §8.3 and REQUIREMENTS open-question #6.",
+          "Pattern is decided (loopback) — see ARCHITECTURE §8.3 and ADR-0004.",
       );
     },
 
