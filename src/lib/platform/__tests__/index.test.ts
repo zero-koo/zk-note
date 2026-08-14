@@ -15,9 +15,11 @@ describe("getPlatform", () => {
   });
 
   afterEach(() => {
-    // Clean up any __TAURI__ stub added in a test.
+    // Clean up any Tauri global stubs added in a test.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (window as any).__TAURI__;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (window as any).__TAURI_INTERNALS__;
     vi.restoreAllMocks();
   });
 
@@ -39,6 +41,24 @@ describe("getPlatform", () => {
     // Stub __TAURI__ before importing the module so the isTauri() check sees it.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__TAURI__ = {};
+
+    vi.doMock("../web", () => ({
+      createWebAdapter: () => ({ kind: "web" }),
+    }));
+    vi.doMock("../tauri", () => ({
+      createTauriAdapter: () => ({ kind: "tauri" }),
+    }));
+
+    const { getPlatform } = await import("../index");
+    const adapter = await getPlatform();
+    expect(adapter.kind).toBe("tauri");
+  });
+
+  it('returns a tauri adapter when only window.__TAURI_INTERNALS__ is present (packaged build without withGlobalTauri)', async () => {
+    // Tauri 2 always injects __TAURI_INTERNALS__; __TAURI__ exists only when
+    // app.withGlobalTauri is enabled in tauri.conf.json (it is not here).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__TAURI_INTERNALS__ = {};
 
     vi.doMock("../web", () => ({
       createWebAdapter: () => ({ kind: "web" }),

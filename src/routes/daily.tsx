@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { BackendStatus } from "~/components/layout/BackendStatus";
 
 export const Route = createFileRoute("/daily")({
   component: DailyPage,
@@ -21,6 +22,7 @@ function DailyPage() {
       <p style={{ color: "var(--color-text-muted)" }}>
         Editor coming soon (Task 4).
       </p>
+      <BackendStatus />
     </main>
   );
 }

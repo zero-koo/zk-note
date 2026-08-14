@@ -5,6 +5,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { ConvexClientProvider } from "~/lib/convex";
+import { PlatformProvider } from "~/lib/platform";
 import "../styles/globals.css";
 
 export const Route = createRootRoute({
@@ -21,7 +23,14 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <RootDocument>
-      <Outlet />
+      {/* PlatformProvider outermost: the platform adapter must resolve even
+          when the Convex URL is missing/invalid (AC #2 holds independently
+          of AC #5's error screen). */}
+      <PlatformProvider>
+        <ConvexClientProvider>
+          <Outlet />
+        </ConvexClientProvider>
+      </PlatformProvider>
     </RootDocument>
   );
 }

@@ -49,7 +49,13 @@ let _pending: Promise<PlatformAdapter> | null = null;
 // ---------------------------------------------------------------------------
 
 function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI__" in window;
+  // Tauri 2 always injects __TAURI_INTERNALS__ into its WebView; __TAURI__
+  // additionally exists only when `app.withGlobalTauri` is enabled in
+  // tauri.conf.json. Check both so detection works either way.
+  return (
+    typeof window !== "undefined" &&
+    ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+  );
 }
 
 // ---------------------------------------------------------------------------
