@@ -650,7 +650,7 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 4. **태스크 상세(detail) 에디터**: 별도 TipTap 인스턴스 vs 간단한 textarea
 5. **영구 오프라인(Phase 2)**: 직접 IndexedDB 캐시를 만들기보다 Convex 공식 sync 엔진(`curvilinear`) alpha 졸업 시점에 맞춰 채택. MVP는 미동기 버퍼 로컬 보존으로 한정(§9)
 6. **Tauri OAuth 콜백 패턴**: deep link(`zknote://`) vs 임시 localhost 서버 — Convex Auth 권장 패턴 검증 후 확정 (8.3 참고)
-7. **Convex × Tauri WebView 연결성**: Start SPA 모드의 Tauri 동작은 공개 템플릿으로 검증됨(라우팅은 비위험). 실제 PoC 위험은 **Convex React Client의 WebSocket이 Tauri WebView(`tauri://localhost`) origin에서 유지되는가** — `tauri.conf.json` CSP `connect-src`에 Convex WS 엔드포인트 허용 필요
+7. ~~**Convex × Tauri WebView 연결성**~~ → **해결됨 (2026-08-14, ADR-0001)**: 빌드된 앱의 `tauri://localhost` origin + 현행 CSP에서 WebSocket이 0.7초 만에 연결되고 약 4분간 재연결 0회로 유지됨. Convex는 WS 핸드셰이크에서 Origin을 검사하지 않음. **CSP 수정 불필요.** 측정 방법과 함정은 `docs/adr/0001-convex-websocket-over-tauri-webview.md` 참고
 11. **노트 source of truth (A 마크다운 vs B `prosemirror-sync`)**: §10.1 갈림길. 채택 시 스키마·검색·Export·오프라인 버퍼 전반 재설계 — 에디터 PoC에서 최우선 결정
 8. **Tauri 자동 업데이트 호스팅**: 업데이트 manifest 호스팅 위치 (Convex Storage / GitHub Releases / 별도 정적 호스팅)
 9. **데스크탑 코드 서명**: macOS 공증 / Windows 코드 서명 적용 시점 (개인 사용 단계에서는 생략)
@@ -660,10 +660,11 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 
 ## 13. 다음 단계
 
-1. **Tauri PoC** (모든 결정의 선결 조건) — 공개 Tauri 2.0 + TanStack Start 템플릿에서 시작해 통합 삽질 생략:
-   - **Convex React Client WebSocket이 Tauri WebView(`tauri://localhost`)에서 실시간 구독을 유지하는가** (CSP `connect-src` 설정 포함) ← 핵심 위험
-   - Start SPA 모드 prerender 산출물이 Tauri에서 라우팅 정상 동작 확인
-   - Google OAuth 데스크탑 콜백 패턴 결정 (8.3)
+1. ~~**Tauri PoC**~~ — 핵심 위험은 해소됨:
+   - ~~Convex React Client WebSocket이 Tauri WebView(`tauri://localhost`)에서 실시간 구독을 유지하는가~~ → **유지된다 (2026-08-14, ADR-0001).** CSP 수정 불필요
+   - ~~Start SPA 모드 prerender 산출물이 Tauri에서 라우팅 정상 동작 확인~~ → 확인됨. 빌드된 앱에서 SPA 셸이 뜨고 클라이언트 라우팅으로 딥링크 라우트까지 도달함
+   - **남음** — Google OAuth 데스크탑 콜백 패턴 결정 (8.3). 이건 돌려보는 문제가 아니라 Convex Auth 권장 패턴을 읽어 정하는 문제
+   - **남음** — 인증 토큰이 붙은 뒤에도 WS 동작이 같은지. 이번 측정은 미인증 상태로만 했다(ADR-0001 "뒤집어야 할 신호")
 2. **에디터 PoC**:
    - **노트 source of truth A/B 결정 (§10.1)** ← 검색·Export·오프라인이 여기 종속되므로 최우선
    - A 선택 시: `tiptap-markdown`이 커스텀 노드(TaskNode/WikiLink) 직렬화를 지원하는지, 마크다운 라운드트립 검증
