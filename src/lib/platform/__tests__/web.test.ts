@@ -98,4 +98,22 @@ describe("createWebAdapter", () => {
       );
     });
   });
+
+  describe("desktop-only methods", () => {
+    // Callers reach these through `platform.method?.()`. Leaving them undefined
+    // on web is what makes that guard a no-op in the browser — if one ever
+    // gains a web implementation, the guard silently starts firing.
+    it("leaves checkForUpdate undefined so the web build never self-updates", () => {
+      const adapter = createWebAdapter();
+      expect(adapter.checkForUpdate).toBeUndefined();
+    });
+
+    it("leaves the remaining desktop-only methods undefined", () => {
+      const adapter = createWebAdapter();
+      expect(adapter.setWindowTitle).toBeUndefined();
+      expect(adapter.registerMenuHandler).toBeUndefined();
+      expect(adapter.registerGlobalShortcut).toBeUndefined();
+      expect(adapter.spawnTerminal).toBeUndefined();
+    });
+  });
 });
