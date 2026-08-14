@@ -41,7 +41,10 @@
       "open": true
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlBMkYxQTBDM0E0OTZGNzUKUldSMWIwazZEQm92bW00clpvcHYvYmlrc3RuM09rTlA2S25RRElNOE5qMVJQN0IzU1IwT3Fqa28K"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlBMkYxQTBDM0E0OTZGNzUKUldSMWIwazZEQm92bW00clpvcHYvYmlrc3RuM09rTlA2S25RRElNOE5qMVJQN0IzU1IwT3Fqa28K",
+      "endpoints": [
+        "https://github.com/zero-koo/zk-note/releases/latest/download/latest.json"
+      ]
     }
   }
 }
