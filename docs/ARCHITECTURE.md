@@ -621,7 +621,7 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 | 단순성 | 높음(이식성·외부 .md 호환 직관적) | 낮음(컴포넌트 데이터 모델에 종속) |
 | 제약 | — | 문서 1MB 미만, Yjs 불가, **오프라인 편집 미지원(예정)** |
 
-> **PoC 선결 사항**: 에디터 PoC에서 A/B를 가장 먼저 결정한다. B를 택하면 §3 스키마(노트 본문 저장 위치), 검색 인덱스, Export(§10), 오프라인 버퍼(§9.1)가 모두 컴포넌트 데이터 모델 위에서 다시 그려진다. (REQUIREMENTS §10-9 참고)
+> **결정됨 (2026-08-14, ADR-0003): A — 마크다운이 원본.** 프로토타입에서 커스텀 노드(TaskNode·WikiLink)를 품은 마크다운 왕복을 16개 케이스로 측정해 **내용 손실 0건**을 확인했다. B의 제약인 오프라인 편집 미지원이 Phase 2 로드맵과 충돌하는 것이 결정적이었다 — 이 선택은 "안전 vs 단순"이 아니라 **동시편집이냐 오프라인이냐**의 교환이었고, 개인용 앱에서 후자를 택했다. 남는 대가(LWW 유실 위험, 저장 시 재포맷)와 구현 시 반드시 지켜야 할 항목은 `docs/adr/0003-markdown-is-the-note-source-of-truth.md` 참고.
 
 ---
 
@@ -651,7 +651,7 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 5. **영구 오프라인(Phase 2)**: 직접 IndexedDB 캐시를 만들기보다 Convex 공식 sync 엔진(`curvilinear`) alpha 졸업 시점에 맞춰 채택. MVP는 미동기 버퍼 로컬 보존으로 한정(§9)
 6. **Tauri OAuth 콜백 패턴**: deep link(`zknote://`) vs 임시 localhost 서버 — Convex Auth 권장 패턴 검증 후 확정 (8.3 참고)
 7. ~~**Convex × Tauri WebView 연결성**~~ → **해결됨 (2026-08-14, ADR-0001)**: 빌드된 앱의 `tauri://localhost` origin + 현행 CSP에서 WebSocket이 0.7초 만에 연결되고 약 4분간 재연결 0회로 유지됨. Convex는 WS 핸드셰이크에서 Origin을 검사하지 않음. **CSP 수정 불필요.** 측정 방법과 함정은 `docs/adr/0001-convex-websocket-over-tauri-webview.md` 참고
-11. **노트 source of truth (A 마크다운 vs B `prosemirror-sync`)**: §10.1 갈림길. 채택 시 스키마·검색·Export·오프라인 버퍼 전반 재설계 — 에디터 PoC에서 최우선 결정
+11. ~~**노트 source of truth (A 마크다운 vs B `prosemirror-sync`)**~~ → **해결됨 (2026-08-14, ADR-0003)**: A 채택. 왕복 손실 0건 실측, B의 오프라인 미지원 제약이 로드맵과 충돌. 스키마·검색·Export는 현 설계 유지
 8. **Tauri 자동 업데이트 호스팅**: 업데이트 manifest 호스팅 위치 (Convex Storage / GitHub Releases / 별도 정적 호스팅)
 9. **데스크탑 코드 서명**: macOS 공증 / Windows 코드 서명 적용 시점 (개인 사용 단계에서는 생략)
 10. **모바일 PWA 한계**: iOS Safari의 PWA 제약 (오프라인, 설치 UX) 파악 후 native 래퍼 필요 시점 결정
@@ -665,9 +665,8 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
    - ~~Start SPA 모드 prerender 산출물이 Tauri에서 라우팅 정상 동작 확인~~ → 확인됨. 빌드된 앱에서 SPA 셸이 뜨고 클라이언트 라우팅으로 딥링크 라우트까지 도달함
    - **남음** — Google OAuth 데스크탑 콜백 패턴 결정 (8.3). 이건 돌려보는 문제가 아니라 Convex Auth 권장 패턴을 읽어 정하는 문제
    - **남음** — 인증 토큰이 붙은 뒤에도 WS 동작이 같은지. 이번 측정은 미인증 상태로만 했다(ADR-0001 "뒤집어야 할 신호")
-2. **에디터 PoC**:
-   - **노트 source of truth A/B 결정 (§10.1)** ← 검색·Export·오프라인이 여기 종속되므로 최우선
-   - A 선택 시: `tiptap-markdown`이 커스텀 노드(TaskNode/WikiLink) 직렬화를 지원하는지, 마크다운 라운드트립 검증
-   - B 선택 시: `prosemirror-sync` TipTap 연동 + 마크다운 Export 파생 검증
+2. ~~**에디터 PoC**~~ — 완료 (2026-08-14, ADR-0003):
+   - ~~노트 source of truth A/B 결정 (§10.1)~~ → **A 채택**
+   - ~~`tiptap-markdown`이 커스텀 노드(TaskNode/WikiLink) 직렬화를 지원하는지, 마크다운 라운드트립 검증~~ → 16개 케이스 **내용 손실 0건**. 구현 시 지켜야 할 함정 4가지는 ADR-0003 참고
 3. Phase 1 MVP 구현 시작
    - 권장 순서: Tauri 셸 셋업 → 플랫폼 추상화 → Convex 스키마 → 인증 → 에디터 기본 → Daily Note → 태스크 연동 → 자동 업데이트 채널

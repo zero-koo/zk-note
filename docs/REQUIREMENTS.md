@@ -253,7 +253,7 @@ Task (독립 DB)
 6. **데스크탑 OAuth 콜백 방식**: Tauri 환경에서 Google OAuth 리디렉션을 어떻게 처리할 것인가? — 커스텀 URL 스킴(`zknote://`) vs 임시 로컬 서버(`http://localhost:포트`) (Convex Auth가 권장하는 패턴 검증 필요)
 7. **데스크탑 코드 서명/공증**: macOS 공증(Notarization) 및 Windows 코드 서명을 MVP 시점에 적용할 것인가? (개인 사용 단계에서는 생략 가능)
 8. ~~**TanStack Start의 SSR**~~ → 해결됨: Start **SPA 모드**로 Tauri 빌드, 웹은 selective SSR. 뒤이어 제기됐던 **Convex WebSocket이 Tauri WebView(`tauri://localhost`) origin/CSP에서 유지되는가**도 2026-08-14 PoC로 해결됨 — 유지된다 (ADR-0001)
-9. **노트 본문 동시편집 유실**: Last-Write-Wins 통짜 덮어쓰기 대신 `prosemirror-sync`(step 단위 OT 병합) 채택 여부 — 채택 시 "마크다운이 source of truth" 원칙이 "Export 시 파생"으로 바뀜 (아키텍처 §10 트레이드오프 참고)
+9. ~~**노트 본문 동시편집 유실**~~ → 해결됨 (2026-08-14, ADR-0003): `prosemirror-sync` 를 채택하지 **않는다**. 마크다운이 source of truth 로 유지된다. B 의 오프라인 편집 미지원 제약이 Phase 2 오프라인 목표와 충돌하는 것이 결정적이었다. **LWW 유실 위험은 남으므로** 저장 전 갱신 감지·충돌 알림으로 완화한다
 10. **영구 오프라인 시점**: Convex 공식 sync 엔진(`curvilinear`) alpha 졸업 시점에 맞춰 Phase 2 도입할지, 그 전까지 미동기 버퍼 로컬 보존으로 버틸지
 
 ---
