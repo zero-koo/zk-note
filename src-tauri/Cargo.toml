@@ -1,5 +1,7 @@
 [package]
 name = "zk-note"
+# 앱 버전의 source of truth 는 루트 package.json 이다 (tauri.conf.json 이 그 경로를 가리킨다).
+# 이 값은 crate 메타데이터일 뿐 앱 버전으로 쓰이지 않으므로 bump 하지 않는다.
 version = "0.1.0"
 description = "ZK-Note — markdown note app"
 authors = ["zerokoo"]
