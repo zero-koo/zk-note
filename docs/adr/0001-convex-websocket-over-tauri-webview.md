@@ -17,7 +17,10 @@
 ## 결정
 
 **Convex 를 데스크탑에서도 그대로 쓴다.** 별도의 프록시 계층, IPC 우회, HTTP 폴백을 두지
-않는다. `tauri.conf.json` 의 CSP 도 현행 유지한다.
+않는다. `tauri.conf.json` 의 CSP 도 Convex 를 위해 완화할 필요가 없다.
+
+> 2026-08-14 이후 같은 `connect-src` 에 `ipc: http://ipc.localhost` 가 추가됐다. 그건 Tauri
+> 자체 IPC 용이며 Convex 와 무관하다 — 위 측정 결과에 영향을 주지 않는다.
 
 ## 근거 — 실측
 
@@ -31,7 +34,7 @@
 | 최초 연결 | 마운트 후 **0.7초** |
 | 안정성 | `connectionCount=1`, `connectionRetries=0` 이 **약 4분간 변화 없음** |
 | 트래픽 | 그동안 10초 주기 mutation 왕복 약 24회, 실패 0 |
-| CSP | `connect-src 'self' wss: https:` 로 충분 — 수정 불필요 |
+| CSP | `connect-src` 의 `wss:` 로 충분 — **Convex 연결을 위해서는** 수정 불필요 |
 
 교차 검증으로 Convex sync 엔드포인트에 직접 WebSocket 핸드셰이크를 걸었다.
 `tauri://localhost`, `http://tauri.localhost`(Windows 쪽 origin), `http://localhost:3000`,
