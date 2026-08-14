@@ -7,7 +7,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "start": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p convex --noEmit",
     "test": "vitest run",
     "tauri": "tauri",
     "proto:md": "tsx src/lib/editor/prototype-source-of-truth/tui.ts"
@@ -18,11 +18,12 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2.5.4",
-    "convex": "^1.41.0",
+    "convex": "^1.43.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@tailwindcss/vite": "^4.3.1",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/cli": "^2.11.3",
@@ -39,6 +40,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^4.1.9",
+    "convex-test": "^0.0.55",
     "happy-dom": "^20.10.6",
     "tailwindcss": "^4.3.1",
     "tiptap-markdown": "^0.9.0",
