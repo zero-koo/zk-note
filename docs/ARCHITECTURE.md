@@ -672,8 +672,8 @@ Convex content (마크다운) → HTML comment 제거 → .md 파일 다운로�
 6. ~~**Tauri OAuth 콜백 패턴**~~ → **해결됨 (2026-08-14, ADR-0004)**: 임시 루프백 서버(`http://127.0.0.1:<port>`). Tauri 딥링크가 macOS 런타임 등록 불가라 현 개발 흐름으로 검증 불가능한 것이 결정적. Google·RFC 8252도 데스크탑에 루프백을 권장
 7. ~~**Convex × Tauri WebView 연결성**~~ → **해결됨 (2026-08-14, ADR-0001)**: 빌드된 앱의 `tauri://localhost` origin + 현행 CSP에서 WebSocket이 0.7초 만에 연결되고 약 4분간 재연결 0회로 유지됨. Convex는 WS 핸드셰이크에서 Origin을 검사하지 않음. **CSP 수정 불필요.** 측정 방법과 함정은 `docs/adr/0001-convex-websocket-over-tauri-webview.md` 참고
 11. ~~**노트 source of truth (A 마크다운 vs B `prosemirror-sync`)**~~ → **해결됨 (2026-08-14, ADR-0003)**: A 채택. 왕복 손실 0건 실측, B의 오프라인 미지원 제약이 로드맵과 충돌. 스키마·검색·Export는 현 설계 유지
-8. **Tauri 자동 업데이트 호스팅**: 업데이트 manifest 호스팅 위치 (Convex Storage / GitHub Releases / 별도 정적 호스팅)
-9. **데스크탑 코드 서명**: macOS 공증 / Windows 코드 서명 적용 시점 (개인 사용 단계에서는 생략)
+8. ~~**Tauri 자동 업데이트 호스팅**~~ → **해결됨 (2026-08-15, ADR-0006)**: **GitHub Releases**. 아티팩트와 manifest 가 같은 릴리스에 함께 올라가 둘이 어긋날 여지가 구조적으로 없는 것이 결정적. 엔드포인트는 버전 무관 고정 URL `releases/latest/download/latest.json`, 릴리스는 `v*` 태그 push 가 GitHub Actions 로 만든다. Convex Storage 는 채널을 앱 백엔드에 묶어 "독립 인프라" 전제가 깨져 기각
+9. **데스크탑 코드 서명**: macOS 공증 / Windows 코드 서명 적용 시점 (개인 사용 단계에서는 생략) — **자가 업데이트만 놓고 보면 공증 없이 동작함이 실측됐다 (2026-08-15, ADR-0006).** updater 가 Rust 파일 I/O 로 번들을 써 quarantine 이 붙지 않아 Gatekeeper 를 구조적으로 지나간다. **다만 브라우저로 받는 첫 설치는 막힌다** — quarantine 이 붙은 미공증 앱은 실행되지 않고 macOS 가 휴지통으로 옮기며, ad-hoc 재서명으로도 풀리지 않는다. 현재는 터미널 설치(`tar` 추출)로 우회 중이며, 이 우회를 그만두고 싶어지는 시점이 곧 공증 도입 시점이다
 10. **모바일 PWA 한계**: iOS Safari의 PWA 제약 (오프라인, 설치 UX) 파악 후 native 래퍼 필요 시점 결정
 
 ---
