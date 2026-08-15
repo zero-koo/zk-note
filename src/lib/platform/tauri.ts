@@ -13,7 +13,6 @@
  *   - `@tauri-apps/plugin-opener`  → capability: `core:opener`
  *   - `@tauri-apps/plugin-dialog`  → capability: `dialog:allow-save`
  *   - `@tauri-apps/plugin-fs`      → capability: `fs:allow-write-binary-file`
- *   - `@tauri-apps/api` (window)   → capability: `core:window:allow-set-title`
  */
 
 import type { PlatformAdapter } from "./types";
@@ -21,19 +20,6 @@ import type { PlatformAdapter } from "./types";
 export function createTauriAdapter(): PlatformAdapter {
   return {
     kind: "tauri",
-
-    /**
-     * Desktop OAuth via a temporary loopback server (ADR-0004).
-     * Open the auth URL in the SYSTEM browser via plugin-opener — opening it in
-     * this WebView makes Google reject it as `disallowed_useragent`.
-     * Requires `callbacks.redirect` in convex/auth.ts to allow 127.0.0.1 ports.
-     */
-    async startOAuthFlow(_provider: "google"): Promise<void> {
-      throw new Error(
-        "startOAuthFlow: Tauri desktop OAuth is not yet implemented. " +
-          "Pattern is decided (loopback) — see ARCHITECTURE §8.3 and ADR-0004.",
-      );
-    },
 
     /**
      * Open a URL in the OS default browser.
@@ -66,20 +52,5 @@ export function createTauriAdapter(): PlatformAdapter {
       const buffer = await data.arrayBuffer();
       await writeFile(filePath, new Uint8Array(buffer));
     },
-
-    /**
-     * Update the native window title bar.
-     * CAPABILITY: `core:window:allow-set-title`.
-     */
-    setWindowTitle(title: string): void {
-      // NOTE: Requires `@tauri-apps/api` with the window capability granted.
-      // Fire-and-forget — title updates are best-effort.
-      void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
-        void getCurrentWindow().setTitle(title);
-      });
-    },
-
-    // registerMenuHandler, registerGlobalShortcut, spawnTerminal:
-    // Intentionally undefined — YAGNI until Phase 2/3.
   };
 }

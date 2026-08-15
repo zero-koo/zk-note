@@ -90,12 +90,4 @@ describe("createWebAdapter", () => {
     });
   });
 
-  describe("startOAuthFlow", () => {
-    it("throws a not-implemented error", async () => {
-      const adapter = createWebAdapter();
-      await expect(adapter.startOAuthFlow("google")).rejects.toThrow(
-        /not yet implemented/i,
-      );
-    });
-  });
 });
