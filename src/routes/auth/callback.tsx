@@ -6,7 +6,7 @@ export const Route = createFileRoute("/auth/callback")({
 
 function AuthCallbackPage() {
   return (
-    <main style={{ padding: "2rem" }}>
+    <main className="p-8">
       <p>Completing sign-in…</p>
     </main>
   );

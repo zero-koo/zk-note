@@ -36,7 +36,7 @@ function getOrCreateClient(url: string): ConvexReactClient {
 
 function ConfigError({ children }: { children: ReactNode }): ReactElement {
   return (
-    <div role="alert" style={{ padding: "1rem", color: "red" }}>
+    <div role="alert" className="p-4 text-danger">
       {children}
     </div>
   );

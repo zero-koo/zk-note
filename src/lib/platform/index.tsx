@@ -139,7 +139,7 @@ export function PlatformProvider({
 
   if (error !== null) {
     return (
-      <div role="alert" style={{ padding: "1rem", color: "red" }}>
+      <div role="alert" className="p-4 text-danger">
         Failed to initialise platform adapter: {error.message}
       </div>
     ) as ReactElement;

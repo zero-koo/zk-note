@@ -21,13 +21,7 @@ export function BackendStatus(): ReactElement {
   const platform = usePlatform();
 
   return (
-    <div
-      data-testid="backend-status"
-      style={{
-        fontSize: "0.875rem",
-        color: "var(--color-text-muted)",
-      }}
-    >
+    <div data-testid="backend-status" className="text-sm text-muted">
       <span>
         {currentUser === undefined
           ? "Convex: connecting…"

@@ -6,9 +6,9 @@ export const Route = createFileRoute("/calendar/")({
 
 function CalendarPage() {
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Calendar</h1>
-      <p style={{ color: "var(--color-text-muted)" }}>Coming soon.</p>
+    <main className="p-8">
+      <h1 className="text-2xl font-bold">Calendar</h1>
+      <p className="text-muted">Coming soon.</p>
     </main>
   );
 }
