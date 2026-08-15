@@ -1,0 +1,84 @@
+name: Release
+
+# 태그 push 가 유일한 트리거다. 버전을 올리고 릴리스를 내는 절차는 두 줄이다:
+#   pnpm version patch --message "chore: 버전 %s"
+#   git push --follow-tags
+# 태그는 package.json 에서 파생되므로 (pnpm 기본 prefix "v") 둘이 어긋날 수 없다.
+on:
+  push:
+    tags:
+      - "v*"
+
+# 릴리스 생성과 에셋 업로드에 필요하다.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # macos-latest 는 Apple Silicon 이라 aarch64-apple-darwin 이 네이티브다.
+    # 이 지도는 darwin-aarch64 하나만 대상으로 한다 (Intel·Windows·Linux 는 범위 밖).
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # 정상 경로(pnpm version)에서는 태그가 package.json 에서 파생되므로 어긋날 수
+      # 없지만, 손으로 태그를 달면 어긋난다. 그대로 릴리스가 나가면 updater 가
+      # 조용히 실패하므로 (설치된 앱이 새 버전을 영영 못 봄) 여기서 막는다.
+      - name: 태그와 package.json 버전 일치 검사
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          echo "태그: $GITHUB_REF_NAME (→ $TAG) / package.json: $PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::태그($GITHUB_REF_NAME)와 package.json($PKG)의 버전이 다릅니다. pnpm version 으로 올렸는지 확인하세요."
+            exit 1
+          fi
+
+      - name: 의존성 설치
+        run: pnpm install --frozen-lockfile
+
+      - name: 타입 검사
+        run: pnpm typecheck
+
+      - name: 테스트
+        run: pnpm test
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 업데이터 서명 키 (지도 #16). 이 값이 없으면 .sig 가 만들어지지 않고
+          # 설치된 앱이 업데이트를 검증하지 못한다.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          # draft 로 두면 안 된다. 엔드포인트가 보는 releases/latest 는 draft 와
+          # prerelease 를 건너뛰므로, draft 인 채로는 태그를 밀어도 설치된 앱이
+          # 새 버전을 영영 못 본다 — 에러 없이 조용히 실패하는 종류의 함정이다.
+          releaseDraft: false
+          prerelease: false
+          # 기본값이 true 지만 채널 전체가 이 파일 하나에 걸려 있으므로 명시한다.
+          # latest.json 이 안 올라가면 엔드포인트가 404 가 되고 업데이트가 멈춘다.
+          uploadUpdaterJson: true
+          # bundle.targets 는 tauri.conf.json 에서 ["app"] 으로 좁혀 뒀다.
+          # "all" 은 DMG 실패가 updater 산출물 생성까지 중단시킨다 (지도 #20).
+          args: --target aarch64-apple-darwin
