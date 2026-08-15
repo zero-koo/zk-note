@@ -1,14 +1,9 @@
 // convex/attachments.ts
 //
-// ⚠️ SECURITY TODO (tracked: Task 4 — gated on auth PoC, see auth.ts):
-// These are STUBS with NO authorization. `listByNote` takes a caller-supplied
-// `noteId` with no ownership check — any caller can list another note's
-// attachments. `create` takes a caller-supplied `userId`/`noteId` without
-// verifying the caller owns the parent note. `remove` deletes by ID without
-// confirming the caller owns the attachment record.
-// Before exposing to real multi-user data: derive the user from
-// ctx.auth.getUserIdentity() (ignore the userId arg on reads) and on every
-// patch/delete do ctx.db.get(id) + throw if doc.userId !== me._id.
+// Every function here is declared with the 소유자 wrapper (ADR-0002), so the
+// owner is already resolved when a handler body starts. Attachments are
+// reached through `getOwned`, which also covers the 노트 an attachment hangs
+// off — handed in as an argument on create and on listByNote.
 //
 // Attachment handling using Convex File Storage.
 // Upload flow:
@@ -16,16 +11,17 @@
 //   2. Client PUTs the file to that URL (returns a storageId).
 //   3. Client calls create() with the storageId + metadata.
 
-import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getOwned, ownerMutation, ownerQuery } from "./owner";
 
-/** List all attachments for a given note. */
-export const listByNote = query({
+/** List all 첨부 for a given 노트. */
+export const listByNote = ownerQuery({
   args: { noteId: v.id("notes") },
   handler: async (ctx, args) => {
+    const note = await getOwned(ctx, "notes", args.noteId);
     return await ctx.db
       .query("attachments")
-      .withIndex("by_note", (q) => q.eq("noteId", args.noteId))
+      .withIndex("by_note", (q) => q.eq("noteId", note._id))
       .collect();
   },
 });
@@ -35,17 +31,16 @@ export const listByNote = query({
  * The client uploads directly to this URL, then calls create() with the
  * returned storageId.
  */
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = ownerMutation({
   args: {},
   handler: async (ctx) => {
     return await ctx.storage.generateUploadUrl();
   },
 });
 
-/** Save attachment metadata after a successful file upload. */
-export const create = mutation({
+/** Save 첨부 metadata after a successful file upload. */
+export const create = ownerMutation({
   args: {
-    userId: v.id("users"),
     noteId: v.id("notes"),
     storageId: v.id("_storage"),
     fileName: v.string(),
@@ -53,9 +48,29 @@ export const create = mutation({
     size: v.number(),
   },
   handler: async (ctx, args) => {
+    const note = await getOwned(ctx, "notes", args.noteId);
+
+    // The stored file is a reference argument too. Files have no 소유자 field,
+    // so the attachment records pointing at one are what establish who it
+    // belongs to: refuse a file another 소유자 has already claimed. Otherwise a
+    // 소유자 could hang someone else's file off their own 노트 and then delete
+    // it through `remove` below.
+    //
+    // Residual gap: a file uploaded but not yet attached is claimed by nobody,
+    // so this cannot catch it. Closing that needs an owner recorded at upload
+    // time, which is a schema change beyond ADR-0002 — storage ids are
+    // unguessable, so the exposure is a caller re-using an id they already saw.
+    const claimants = await ctx.db
+      .query("attachments")
+      .withIndex("by_storage", (q) => q.eq("storageId", args.storageId))
+      .collect();
+    if (claimants.some((claim) => claim.userId !== ctx.owner._id)) {
+      throw new Error("Not found or not owned: _storage");
+    }
+
     return await ctx.db.insert("attachments", {
-      userId: args.userId,
-      noteId: args.noteId,
+      userId: ctx.owner._id,
+      noteId: note._id,
       storageId: args.storageId,
       fileName: args.fileName,
       mimeType: args.mimeType,
@@ -66,14 +81,13 @@ export const create = mutation({
 });
 
 /**
- * Delete an attachment record and its stored file.
+ * Delete a 첨부 record and its stored file.
  */
-export const remove = mutation({
+export const remove = ownerMutation({
   args: { attachmentId: v.id("attachments") },
   handler: async (ctx, args) => {
-    const attachment = await ctx.db.get(args.attachmentId);
-    if (!attachment) return;
+    const attachment = await getOwned(ctx, "attachments", args.attachmentId);
     await ctx.storage.delete(attachment.storageId);
-    await ctx.db.delete(args.attachmentId);
+    await ctx.db.delete(attachment._id);
   },
 });

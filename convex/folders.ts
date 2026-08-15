@@ -1,42 +1,45 @@
 // convex/folders.ts
 //
-// ⚠️ SECURITY TODO (tracked: Task 4 — gated on auth PoC, see auth.ts):
-// These are STUBS with NO authorization. `list` takes a caller-supplied
-// `userId` with no verification — any caller can enumerate another user's
-// folders. `rename`, `move`, and `remove` patch/delete by ID without
-// confirming the caller owns the document.
-// Before exposing to real multi-user data: derive the user from
-// ctx.auth.getUserIdentity() (ignore the userId arg on reads) and on every
-// patch/delete do ctx.db.get(id) + throw if doc.userId !== me._id.
+// Every function here is declared with the 소유자 wrapper (ADR-0002), so the
+// owner is already resolved when a handler body starts. Folders are reached
+// through `getOwned`, which refuses another 소유자's folder — including the
+// `parentId` handed in as an argument, so a folder cannot be filed under
+// someone else's.
 
-import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  getOwned,
+  getOwnedIfPresent,
+  ownerMutation,
+  ownerQuery,
+} from "./owner";
 
 /**
- * List all folders for a user.
+ * List all 폴더 for the 소유자.
  * Returns a flat list; the client builds the tree from parentId relationships.
  */
-export const list = query({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
+export const list = ownerQuery({
+  args: {},
+  handler: async (ctx) => {
     return await ctx.db
       .query("folders")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", ctx.owner._id))
       .collect();
   },
 });
 
-/** Create a new folder. */
-export const create = mutation({
+/** Create a new 폴더. */
+export const create = ownerMutation({
   args: {
-    userId: v.id("users"),
     name: v.string(),
     parentId: v.optional(v.id("folders")),
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await getOwnedIfPresent(ctx, "folders", args.parentId);
+
     return await ctx.db.insert("folders", {
-      userId: args.userId,
+      userId: ctx.owner._id,
       name: args.name,
       parentId: args.parentId,
       sortOrder: args.sortOrder ?? Date.now(),
@@ -44,39 +47,44 @@ export const create = mutation({
   },
 });
 
-/** Rename a folder. */
-export const rename = mutation({
+/** Rename a 폴더. */
+export const rename = ownerMutation({
   args: {
     folderId: v.id("folders"),
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.folderId, { name: args.name });
+    const folder = await getOwned(ctx, "folders", args.folderId);
+    await ctx.db.patch(folder._id, { name: args.name });
   },
 });
 
-/** Move a folder to a new parent (or to root when parentId is undefined). */
-export const move = mutation({
+/** Move a 폴더 to a new parent (or to root when parentId is undefined). */
+export const move = ownerMutation({
   args: {
     folderId: v.id("folders"),
     parentId: v.optional(v.id("folders")),
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const folder = await getOwned(ctx, "folders", args.folderId);
+    await getOwnedIfPresent(ctx, "folders", args.parentId);
+
     const patch: Record<string, unknown> = { parentId: args.parentId };
     if (args.sortOrder !== undefined) patch.sortOrder = args.sortOrder;
-    await ctx.db.patch(args.folderId, patch);
+    await ctx.db.patch(folder._id, patch);
   },
 });
 
 /**
- * Delete a folder by ID.
+ * Delete a 폴더 by ID.
  * NOTE: does NOT cascade-delete child folders or notes; the caller is
  * responsible for moving or removing children first.
  */
-export const remove = mutation({
+export const remove = ownerMutation({
   args: { folderId: v.id("folders") },
   handler: async (ctx, args) => {
-    await ctx.db.delete(args.folderId);
+    const folder = await getOwned(ctx, "folders", args.folderId);
+    await ctx.db.delete(folder._id);
   },
 });
