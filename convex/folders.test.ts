@@ -4,34 +4,19 @@
  * folder belonging to another 소유자 (ADR-0002).
  */
 import { describe, it, expect } from "vitest";
-import { convexTest } from "convex-test";
-import schema from "./schema";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { seedFolder, twoOwners } from "./fixtures.test";
 
-const modules = import.meta.glob("./**/*.*s");
-
-const ME = "google|owner";
-const THEM = "google|other";
-
-/** Seed both 소유자 records and return a folder belonging to the other one. */
+/** Both 소유자 seeded, plus a 폴더 belonging to the other one. */
 async function setup() {
-  const t = convexTest(schema, modules);
-  const theirFolder = await t.run(async (ctx) => {
-    await ctx.db.insert("users", { tokenIdentifier: ME });
-    const them = await ctx.db.insert("users", { tokenIdentifier: THEM });
-    return await ctx.db.insert("folders", {
-      userId: them,
-      name: "남의 폴더",
-      sortOrder: 0,
-    });
-  });
-  return { t, asMe: t.withIdentity({ tokenIdentifier: ME }), theirFolder };
+  const { t, asMe, me, them } = await twoOwners();
+  return { t, asMe, me, theirFolder: await seedFolder(t, them) };
 }
 
 describe("folders", () => {
   it("creates a 폴더 owned by the 소유자, with no userId argument", async () => {
-    const { t, asMe } = await setup();
+    const { asMe, me } = await setup();
 
     await asMe.mutation(api.folders.create, { name: "새 폴더" });
 
@@ -39,13 +24,7 @@ describe("folders", () => {
     expect(mine.map((f) => f.name)).toEqual(["새 폴더"]);
 
     // and it really is stored against the 소유자, not left unowned
-    const me = await t.run(async (ctx) =>
-      ctx.db
-        .query("users")
-        .withIndex("by_token", (q) => q.eq("tokenIdentifier", ME))
-        .unique(),
-    );
-    expect(mine[0].userId).toBe(me!._id);
+    expect(mine[0].userId).toBe(me);
   });
 
   it("refuses to rename another 소유자's 폴더", async () => {

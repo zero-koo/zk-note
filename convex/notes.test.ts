@@ -5,40 +5,20 @@
  * argument — refuses documents belonging to someone else (ADR-0002).
  */
 import { describe, it, expect } from "vitest";
-import { convexTest } from "convex-test";
-import schema from "./schema";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-
-const modules = import.meta.glob("./**/*.*s");
-
-const ME = "google|owner";
-const THEM = "google|other";
+import { seedFolder, seedNote, twoOwners } from "./fixtures.test";
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  const theirs = await t.run(async (ctx) => {
-    await ctx.db.insert("users", { tokenIdentifier: ME });
-    const them = await ctx.db.insert("users", { tokenIdentifier: THEM });
-    const now = Date.now();
-    const folder = await ctx.db.insert("folders", {
-      userId: them,
-      name: "남의 폴더",
-      sortOrder: 0,
-    });
-    const note = await ctx.db.insert("notes", {
-      userId: them,
-      title: "남의 노트",
-      content: "비밀",
-      tags: [],
-      linkedNoteIds: [],
-      isDailyNote: false,
-      updatedAt: now,
-      createdAt: now,
-    });
-    return { folder, note };
-  });
-  return { t, asMe: t.withIdentity({ tokenIdentifier: ME }), theirs };
+  const { t, asMe, them } = await twoOwners();
+  return {
+    t,
+    asMe,
+    theirs: {
+      folder: await seedFolder(t, them),
+      note: await seedNote(t, them),
+    },
+  };
 }
 
 describe("notes", () => {

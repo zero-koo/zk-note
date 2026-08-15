@@ -36,6 +36,11 @@ export default defineConfig({
           environment: "edge-runtime",
           globals: false,
           include: ["convex/**/*.test.ts"],
+          // fixtures.test.ts holds shared setup, not suites. It carries the
+          // .test.ts name so Convex keeps it out of the deployment bundle
+          // (see the file's own header); excluding it here stops the runner
+          // failing on a file with no tests in it.
+          exclude: ["convex/fixtures.test.ts"],
         },
       },
     ],

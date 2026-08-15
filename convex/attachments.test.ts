@@ -5,45 +5,15 @@
  * (ADR-0002).
  */
 import { describe, it, expect } from "vitest";
-import { convexTest } from "convex-test";
-import schema from "./schema";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-
-const modules = import.meta.glob("./**/*.*s");
-
-const ME = "google|owner";
-const THEM = "google|other";
+import { seedAttachment, seedNote, twoOwners } from "./fixtures.test";
 
 async function setup() {
-  const t = convexTest(schema, modules);
-  const theirs = await t.run(async (ctx) => {
-    await ctx.db.insert("users", { tokenIdentifier: ME });
-    const them = await ctx.db.insert("users", { tokenIdentifier: THEM });
-    const now = Date.now();
-    const note = await ctx.db.insert("notes", {
-      userId: them,
-      title: "남의 노트",
-      content: "비밀",
-      tags: [],
-      linkedNoteIds: [],
-      isDailyNote: false,
-      updatedAt: now,
-      createdAt: now,
-    });
-    const storageId = await ctx.storage.store(new Blob(["남의 파일"]));
-    const attachment = await ctx.db.insert("attachments", {
-      userId: them,
-      noteId: note,
-      storageId,
-      fileName: "secret.png",
-      mimeType: "image/png",
-      size: 9,
-      createdAt: now,
-    });
-    return { note, attachment, storageId };
-  });
-  return { t, asMe: t.withIdentity({ tokenIdentifier: ME }), theirs };
+  const { t, asMe, them } = await twoOwners();
+  const note = await seedNote(t, them);
+  const { attachment, storageId } = await seedAttachment(t, them, note);
+  return { t, asMe, theirs: { note, attachment, storageId } };
 }
 
 describe("attachments", () => {
