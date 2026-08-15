@@ -16,6 +16,7 @@ import {
   ownerMutation,
   ownerQuery,
 } from "./owner";
+import { LIST_LIMIT } from "./limits";
 
 const taskStatus = v.union(
   v.literal("todo"),
@@ -48,7 +49,7 @@ export const list = ownerQuery({
         .withIndex("by_status", (q) =>
           q.eq("userId", ownerId).eq("status", status),
         )
-        .collect();
+        .take(LIST_LIMIT);
     }
     if (args.linkedDate !== undefined) {
       return await ctx.db
@@ -56,7 +57,7 @@ export const list = ownerQuery({
         .withIndex("by_linked_date", (q) =>
           q.eq("userId", ownerId).eq("linkedDate", args.linkedDate),
         )
-        .collect();
+        .take(LIST_LIMIT);
     }
     if (args.dueDate !== undefined) {
       return await ctx.db
@@ -64,12 +65,12 @@ export const list = ownerQuery({
         .withIndex("by_due_date", (q) =>
           q.eq("userId", ownerId).eq("dueDate", args.dueDate),
         )
-        .collect();
+        .take(LIST_LIMIT);
     }
     return await ctx.db
       .query("tasks")
       .withIndex("by_user", (q) => q.eq("userId", ownerId))
-      .collect();
+      .take(LIST_LIMIT);
   },
 });
 

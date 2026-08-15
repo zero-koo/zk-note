@@ -166,6 +166,10 @@ describe("the wrapper is structural, not a convention", () => {
       "./attachments.ts",
       "./auth.ts",
       "./folders.ts",
+      // limits.ts declares no functions — it holds the read caps the list
+      // queries take(). It is in the audit's scope so that adding functions
+      // to it later cannot slip past the wrapper check.
+      "./limits.ts",
       "./notes.ts",
       "./owner.ts",
       "./tasks.ts",

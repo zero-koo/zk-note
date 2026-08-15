@@ -13,6 +13,7 @@
 
 import { v } from "convex/values";
 import { getOwned, ownerMutation, ownerQuery } from "./owner";
+import { ATTACHMENT_LIMIT } from "./limits";
 
 /** List all 첨부 for a given 노트. */
 export const listByNote = ownerQuery({
@@ -22,7 +23,7 @@ export const listByNote = ownerQuery({
     return await ctx.db
       .query("attachments")
       .withIndex("by_note", (q) => q.eq("noteId", note._id))
-      .collect();
+      .take(ATTACHMENT_LIMIT);
   },
 });
 

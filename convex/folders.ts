@@ -14,6 +14,7 @@ import {
   ownerMutation,
   ownerQuery,
 } from "./owner";
+import { LIST_LIMIT } from "./limits";
 
 /**
  * List all 폴더 for the 소유자.
@@ -25,7 +26,7 @@ export const list = ownerQuery({
     return await ctx.db
       .query("folders")
       .withIndex("by_user", (q) => q.eq("userId", ctx.owner._id))
-      .collect();
+      .take(LIST_LIMIT);
   },
 });
 

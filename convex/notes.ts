@@ -17,6 +17,7 @@ import {
   ownerMutation,
   ownerQuery,
 } from "./owner";
+import { LIST_LIMIT, SEARCH_LIMIT } from "./limits";
 
 /** List 노트 for the 소유자, optionally filtered by 폴더. */
 export const list = ownerQuery({
@@ -32,13 +33,13 @@ export const list = ownerQuery({
           q.eq("userId", ctx.owner._id).eq("folderId", args.folderId),
         )
         .order("desc")
-        .collect();
+        .take(LIST_LIMIT);
     }
     return await ctx.db
       .query("notes")
       .withIndex("by_updated", (q) => q.eq("userId", ctx.owner._id))
       .order("desc")
-      .collect();
+      .take(LIST_LIMIT);
   },
 });
 
@@ -133,7 +134,9 @@ export const search = ownerQuery({
       .withSearchIndex("search_notes", (q) =>
         q.search("content", args.query).eq("userId", ctx.owner._id),
       )
-      .collect();
+      // Bounded by relevance order: the tag filter below narrows this page,
+      // it does not reach past it.
+      .take(SEARCH_LIMIT);
 
     // If a tag filter was requested, apply it in memory (Convex search index
     // supports array field filter only as an existence check, not element match).
