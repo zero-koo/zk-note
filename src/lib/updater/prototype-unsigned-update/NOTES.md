@@ -112,13 +112,46 @@ TeamIdentifier=not set
 updater 는 Rust 파일 I/O 로 번들을 쓰므로 quarantine 이 붙지 않는다. **자가 업데이트 경로는
 구조적으로 Gatekeeper 를 지나간다.**
 
+### 첫 설치는 막힌다 (2026-08-15 정정)
+
+> 이 문서의 처음 판에는 "quarantine 을 붙여도 실행됐다"고 적혀 있었다. **틀렸다.**
+> 그 측정은 앱을 이미 여러 번 실행한 뒤라 Gatekeeper 승인이 캐시된 상태였다.
+
+경로를 매번 새로 잡고 통제해서 다시 재면:
+
+| 케이스 | quarantine | 실행 | 번들 |
+|---|---|---|---|
+| A (최초) | 있음 | ❌ | **사라짐 (휴지통)** |
+| B | 없음 | ✅ | 유지 |
+| C | 있음 | ✅ | 유지 |
+| D | 없음 | ✅ | 유지 |
+
+A 와 C 는 조건이 같은데 결과가 다르다. 차이는 그 사이에 B 가 quarantine 없이 한 번
+실행됐다는 것뿐이다 — Gatekeeper 평가는 경로가 아니라 **코드 서명 기준으로 캐시**되므로
+한 번 승인되면 이후 quarantine 사본도 통과한다.
+
+**ad-hoc 재서명으로도 풀리지 않는다.** `spctl` 이 내던 "code has no resources but signature
+indicates they must be present" 는 미공증이 아니라 서명이 망가졌다는 뜻이었고,
+`codesign --force --deep --sign -` 으로 제대로 붙이면 서명은 고쳐진다
+(`Sealed Resources version=2`, spctl 진단도 단순 `rejected` 로 바뀜). 그런데도 quarantine 이
+붙으면 여전히 실행되지 않고 휴지통으로 간다.
+
+**따라서 첫 설치는 터미널 경로로 안내한다** — `tar` 추출은 quarantine 을 붙이지 않는다:
+
+```sh
+gh release download v0.1.0 --pattern '*.app.tar.gz'
+tar -xzf ZK-Note_aarch64.app.tar.gz
+cp -R ZK-Note.app /Applications/
+```
+
+자가 업데이트 경로는 이 문제의 영향을 받지 않는다 — updater 는 Rust 파일 I/O 로 번들을
+쓰므로 quarantine 이 붙지 않고, 교체된 번들의 확장속성은 `com.apple.provenance` 뿐이었다.
+
 ### 한계 — 확인하지 못한 것
 
-- **첫 설치 경로는 이 실험이 제대로 검증하지 못했다.** 여기서는 `cp` 로 설치해 quarantine 이
-  애초에 없었다. 브라우저로 받으면 quarantine 이 붙는다. 이를 흉내내 `xattr -w
-  com.apple.quarantine` 을 붙이고 캐시 없는 새 경로에서 실행해 봤을 때도 떴지만,
-  **Finder 더블클릭이 `open` 과 같게 동작하는지는 확인하지 않았다.** 실제 배포 시 첫 실행에서
-  경고 대화상자가 뜰 가능성은 남아 있다
+- `open` 으로만 실행해 봤다. Finder 더블클릭 시 "휴지통으로 이동 / 취소" 대화상자가 뜨고
+  시스템 설정에서 "그래도 열기" 로 빠져나갈 수 있는지는 확인하지 않았다. 다만 그건 사용자
+  개입이 필요하다는 뜻이라 결론은 바뀌지 않는다
 - Intel macOS, Windows, Linux 는 범위 밖이라 확인하지 않았다
 - 업데이트 실패·중단 시의 롤백 동작은 확인하지 않았다
 
