@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  * Strategy: use vi.resetModules() before each test so that the module-level
  * singleton (_adapter / _pending) is cleared. Then stub the dynamic imports for
  * `./tauri` and `./web` via vi.doMock() (non-hoisted), and control
- * `window.__TAURI__` directly.
+ * `globalThis.isTauri` directly — that is the marker Tauri v2 actually sets.
  */
 
 describe("getPlatform", () => {
@@ -15,13 +15,14 @@ describe("getPlatform", () => {
   });
 
   afterEach(() => {
-    // Clean up any __TAURI__ stub added in a test.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (globalThis as any).isTauri;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (window as any).__TAURI__;
     vi.restoreAllMocks();
   });
 
-  it('returns a web adapter (kind === "web") when __TAURI__ is absent', async () => {
+  it('returns a web adapter (kind === "web") outside Tauri', async () => {
     vi.doMock("../web", () => ({
       createWebAdapter: () => ({ kind: "web" }),
     }));
@@ -35,8 +36,29 @@ describe("getPlatform", () => {
     expect(adapter.kind).toBe("web");
   });
 
-  it('returns a tauri adapter (kind === "tauri") when window.__TAURI__ is present', async () => {
-    // Stub __TAURI__ before importing the module so the isTauri() check sees it.
+  it('returns a tauri adapter (kind === "tauri") when globalThis.isTauri is set', async () => {
+    // This is the marker Tauri v2 injects into every WebView it owns.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).isTauri = true;
+
+    vi.doMock("../web", () => ({
+      createWebAdapter: () => ({ kind: "web" }),
+    }));
+    vi.doMock("../tauri", () => ({
+      createTauriAdapter: () => ({ kind: "tauri" }),
+    }));
+
+    const { getPlatform } = await import("../index");
+    const adapter = await getPlatform();
+    expect(adapter.kind).toBe("tauri");
+  });
+
+  // Regression: detection used to key off window.__TAURI__, which Tauri v2 only
+  // injects when app.withGlobalTauri is enabled (it is not). That made isTauri()
+  // always false, so the desktop app silently ran the WEB adapter and every
+  // desktop-only method became an undefined no-op behind its `?.()` guard —
+  // no error, no log, just a feature that never fired.
+  it("does not treat window.__TAURI__ alone as Tauri", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__TAURI__ = {};
 
@@ -49,7 +71,7 @@ describe("getPlatform", () => {
 
     const { getPlatform } = await import("../index");
     const adapter = await getPlatform();
-    expect(adapter.kind).toBe("tauri");
+    expect(adapter.kind).toBe("web");
   });
 
   it("returns the same instance on repeated calls (singleton)", async () => {

@@ -49,7 +49,16 @@ let _pending: Promise<PlatformAdapter> | null = null;
 // ---------------------------------------------------------------------------
 
 function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI__" in window;
+  // Tauri v2 sets `globalThis.isTauri` in every WebView it owns — this is what
+  // the official `isTauri()` helper in @tauri-apps/api/core checks. We inline it
+  // rather than importing, so the web bundle pulls in no Tauri code.
+  //
+  // Do NOT go back to `window.__TAURI__`: that global only exists when
+  // `app.withGlobalTauri` is enabled in tauri.conf.json, and it is not. Checking
+  // for it makes isTauri() always false, which silently loads the WEB adapter
+  // inside the desktop app — every desktop-only method then becomes an
+  // undefined no-op behind its `?.()` guard, with no error anywhere.
+  return Boolean((globalThis as { isTauri?: boolean }).isTauri);
 }
 
 // ---------------------------------------------------------------------------
