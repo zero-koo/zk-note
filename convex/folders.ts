@@ -7,6 +7,7 @@
 // someone else's.
 
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import {
   getOwned,
   getOwnedIfPresent,
@@ -70,7 +71,7 @@ export const move = ownerMutation({
     const folder = await getOwned(ctx, "folders", args.folderId);
     await getOwnedIfPresent(ctx, "folders", args.parentId);
 
-    const patch: Record<string, unknown> = { parentId: args.parentId };
+    const patch: Partial<Doc<"folders">> = { parentId: args.parentId };
     if (args.sortOrder !== undefined) patch.sortOrder = args.sortOrder;
     await ctx.db.patch(folder._id, patch);
   },

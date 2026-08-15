@@ -10,6 +10,7 @@
 // ADR-0003).
 
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import {
   getOwned,
   getOwnedIfPresent,
@@ -97,7 +98,7 @@ export const update = ownerMutation({
       await getOwned(ctx, "notes", linkedNoteId);
     }
 
-    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    const patch: Partial<Doc<"notes">> = { updatedAt: Date.now() };
     if (args.title !== undefined) patch.title = args.title;
     if (args.content !== undefined) patch.content = args.content;
     if (args.folderId !== undefined) patch.folderId = args.folderId;

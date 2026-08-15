@@ -9,6 +9,7 @@
 //   tags, linkedNoteId, linkedDate (Daily Note date), sortOrder.
 
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import {
   getOwned,
   getOwnedIfPresent,
@@ -132,7 +133,7 @@ export const update = ownerMutation({
   handler: async (ctx, args) => {
     const task = await getOwned(ctx, "tasks", args.taskId);
 
-    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    const patch: Partial<Doc<"tasks">> = { updatedAt: Date.now() };
     if (args.title !== undefined) patch.title = args.title;
     if (args.detail !== undefined) patch.detail = args.detail;
     if (args.dueDate !== undefined) patch.dueDate = args.dueDate;
