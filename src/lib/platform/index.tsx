@@ -100,9 +100,20 @@ const PlatformContext = createContext<PlatformAdapter | null>(null);
 
 interface PlatformProviderProps {
   children: ReactNode;
-  /** Optional fallback rendered while the adapter resolves (default: null). */
+  /**
+   * Rendered while the adapter resolves. The default says something visible on
+   * purpose: a blank screen is indistinguishable from a dead app, which is the
+   * failure mode the bootstrap ticket set out to prevent. Pass your own to
+   * match a screen's layout — but prefer replacing it over blanking it.
+   */
   fallback?: ReactNode;
 }
+
+const DEFAULT_FALLBACK = (
+  <div role="status" className="p-4 text-muted">
+    Starting up…
+  </div>
+);
 
 /**
  * Resolves the platform adapter on mount and provides it to the React tree.
@@ -112,7 +123,7 @@ interface PlatformProviderProps {
  */
 export function PlatformProvider({
   children,
-  fallback = null,
+  fallback = DEFAULT_FALLBACK,
 }: PlatformProviderProps): ReactElement | null {
   const [adapter, setAdapter] = useState<PlatformAdapter | null>(
     // If already resolved (e.g. hot-reload), use it immediately.

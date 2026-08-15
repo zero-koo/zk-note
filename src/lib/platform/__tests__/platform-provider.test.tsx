@@ -69,6 +69,31 @@ describe("PlatformProvider + usePlatform", () => {
     expect(screen.queryByTestId("children")).toBeNull();
   });
 
+  it("shows a loading state (not a blank screen) while the adapter resolves", async () => {
+    vi.doMock("../web", () => ({
+      createWebAdapter: () => ({ kind: "web" }),
+    }));
+
+    const { PlatformProvider, usePlatform } = await import("../index");
+
+    function Child() {
+      return <div data-testid="kind">{usePlatform().kind}</div>;
+    }
+
+    // No `fallback` prop: the DEFAULT must still say something. A blank screen
+    // is the failure mode issue #1 AC5 exists to prevent.
+    render(
+      <PlatformProvider>
+        <Child />
+      </PlatformProvider>,
+    );
+
+    expect(screen.getByRole("status")).toBeTruthy();
+    // …and it gives way to the app once the adapter lands.
+    await waitFor(() => screen.getByTestId("kind"));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("usePlatform() throws when called outside a PlatformProvider", async () => {
     vi.doMock("../web", () => ({
       createWebAdapter: () => ({ kind: "web" }),
