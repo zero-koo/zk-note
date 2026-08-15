@@ -68,6 +68,31 @@ export function createTauriAdapter(): PlatformAdapter {
     },
 
     /**
+     * Ask the update channel whether a newer version exists.
+     * CAPABILITIES: `updater:default` (check/download) + `process:default`
+     * (relaunch). Both are granted in `src-tauri/capabilities/default.json`.
+     *
+     * The endpoint and public key live in `tauri.conf.json` under
+     * `plugins.updater` — this call carries no configuration of its own.
+     */
+    async checkForUpdate() {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (update === null) return null;
+
+      return {
+        version: update.version,
+        notes: update.body,
+        date: update.date,
+        async installAndRelaunch(): Promise<void> {
+          await update.downloadAndInstall();
+          const { relaunch } = await import("@tauri-apps/plugin-process");
+          await relaunch();
+        },
+      };
+    },
+
+    /**
      * Update the native window title bar.
      * CAPABILITY: `core:window:allow-set-title`.
      */

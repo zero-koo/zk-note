@@ -78,7 +78,11 @@ jobs:
           prerelease: false
           # 기본값이 true 지만 채널 전체가 이 파일 하나에 걸려 있으므로 명시한다.
           # latest.json 이 안 올라가면 엔드포인트가 404 가 되고 업데이트가 멈춘다.
-          uploadUpdaterJson: true
+          #
+          # 이름 주의: @v0 이 가리키는 버전은 `includeUpdaterJson` 이다.
+          # dev 브랜치의 `uploadUpdaterJson` 을 쓰면 GitHub 가 조용히 무시하고
+          # "Unexpected input(s)" 경고만 남긴다 — v0.1.0 릴리스에서 실제로 겪었다.
+          includeUpdaterJson: true
           # bundle.targets 는 tauri.conf.json 에서 ["app"] 으로 좁혀 뒀다.
           # "all" 은 DMG 실패가 updater 산출물 생성까지 중단시킨다 (지도 #20).
           args: --target aarch64-apple-darwin

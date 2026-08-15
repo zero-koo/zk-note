@@ -6,6 +6,8 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import "../styles/globals.css";
+import { PlatformProvider } from "../lib/platform";
+import { UpdatePrompt } from "../components/UpdatePrompt";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -21,7 +23,12 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <RootDocument>
-      <Outlet />
+      {/* The provider gates rendering until the adapter resolves, so everything
+          below it can call usePlatform() synchronously. */}
+      <PlatformProvider>
+        <Outlet />
+        <UpdatePrompt />
+      </PlatformProvider>
     </RootDocument>
   );
 }
