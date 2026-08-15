@@ -48,7 +48,6 @@ export default defineSchema({
     isDailyNote: v.boolean(),
     dailyNoteDate: v.optional(v.string()), // YYYY-MM-DD (Daily Notes only)
     updatedAt: v.number(),
-    createdAt: v.number(),
   })
     .index("by_user", ["userId"])
     .index("by_folder", ["userId", "folderId"])
@@ -74,7 +73,6 @@ export default defineSchema({
     linkedDate: v.optional(v.string()), // Daily Note date
     sortOrder: v.number(),
     updatedAt: v.number(),
-    createdAt: v.number(),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["userId", "status"])
@@ -89,7 +87,6 @@ export default defineSchema({
     fileName: v.string(),
     mimeType: v.string(),
     size: v.number(),
-    createdAt: v.number(),
   })
     .index("by_note", ["noteId"])
     // Stored files carry no 소유자 of their own — the attachment record is the

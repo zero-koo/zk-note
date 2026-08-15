@@ -100,7 +100,6 @@ export const create = ownerMutation({
       linkedDate: args.linkedDate,
       sortOrder: args.sortOrder ?? now, // use timestamp as default sort
       updatedAt: now,
-      createdAt: now,
     });
   },
 });

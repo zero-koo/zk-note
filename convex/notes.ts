@@ -74,7 +74,6 @@ export const create = ownerMutation({
       isDailyNote: args.isDailyNote ?? false,
       dailyNoteDate: args.dailyNoteDate,
       updatedAt: now,
-      createdAt: now,
     });
   },
 });

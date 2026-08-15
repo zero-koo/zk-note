@@ -75,7 +75,6 @@ export const create = ownerMutation({
       fileName: args.fileName,
       mimeType: args.mimeType,
       size: args.size,
-      createdAt: Date.now(),
     });
   },
 });

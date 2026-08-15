@@ -74,7 +74,6 @@ export async function seedNote(
       linkedNoteIds: [],
       isDailyNote: false,
       updatedAt: now,
-      createdAt: now,
     });
   });
 }
@@ -94,7 +93,6 @@ export async function seedTask(
       tags: [],
       sortOrder: 0,
       updatedAt: now,
-      createdAt: now,
     });
   });
 }
@@ -114,7 +112,6 @@ export async function seedAttachment(
       fileName: "secret.png",
       mimeType: "image/png",
       size: 9,
-      createdAt: Date.now(),
     });
     return { attachment, storageId };
   });
