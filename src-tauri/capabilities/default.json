@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions granted to the main window. Tauri v2 denies everything not listed here, and a missing permission surfaces as a runtime error rather than a build failure — see the CAPABILITY NOTICE in src/lib/platform/tauri.ts.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:app:allow-version",
+    "shell:default",
+    "updater:default",
+    "process:default"
+  ]
+}
