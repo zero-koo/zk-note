@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UpdaterProbeRouteImport } from './routes/updater-probe'
 import { Route as DailyRouteImport } from './routes/daily'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksIndexRouteImport } from './routes/tasks/index'
@@ -18,11 +17,6 @@ import { Route as CalendarIndexRouteImport } from './routes/calendar/index'
 import { Route as NotesNoteIdRouteImport } from './routes/notes/$noteId'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 
-const UpdaterProbeRoute = UpdaterProbeRouteImport.update({
-  id: '/updater-probe',
-  path: '/updater-probe',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DailyRoute = DailyRouteImport.update({
   id: '/daily',
   path: '/daily',
@@ -62,7 +56,6 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/daily': typeof DailyRoute
-  '/updater-probe': typeof UpdaterProbeRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/calendar/': typeof CalendarIndexRoute
@@ -72,7 +65,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/daily': typeof DailyRoute
-  '/updater-probe': typeof UpdaterProbeRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/calendar': typeof CalendarIndexRoute
@@ -83,7 +75,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/daily': typeof DailyRoute
-  '/updater-probe': typeof UpdaterProbeRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/calendar/': typeof CalendarIndexRoute
@@ -95,7 +86,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/daily'
-    | '/updater-probe'
     | '/auth/callback'
     | '/notes/$noteId'
     | '/calendar/'
@@ -105,7 +95,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/daily'
-    | '/updater-probe'
     | '/auth/callback'
     | '/notes/$noteId'
     | '/calendar'
@@ -115,7 +104,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/daily'
-    | '/updater-probe'
     | '/auth/callback'
     | '/notes/$noteId'
     | '/calendar/'
@@ -126,7 +114,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DailyRoute: typeof DailyRoute
-  UpdaterProbeRoute: typeof UpdaterProbeRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   NotesNoteIdRoute: typeof NotesNoteIdRoute
   CalendarIndexRoute: typeof CalendarIndexRoute
@@ -136,13 +123,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/updater-probe': {
-      id: '/updater-probe'
-      path: '/updater-probe'
-      fullPath: '/updater-probe'
-      preLoaderRoute: typeof UpdaterProbeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/daily': {
       id: '/daily'
       path: '/daily'
@@ -198,7 +178,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DailyRoute: DailyRoute,
-  UpdaterProbeRoute: UpdaterProbeRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   NotesNoteIdRoute: NotesNoteIdRoute,
   CalendarIndexRoute: CalendarIndexRoute,
