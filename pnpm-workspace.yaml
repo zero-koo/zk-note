@@ -1,9 +1,9 @@
 packages:
   - "."
 
+# pnpm 11 은 의존성의 install 스크립트를 기본 차단하고, 승인이 없으면
+# ERR_PNPM_IGNORED_BUILDS 로 `pnpm <script>` 전체를 실패시킨다 — typecheck 까지.
+# esbuild 는 vite 빌드에 네이티브 바이너리가 필요하므로 반드시 허용해야 한다.
 allowBuilds:
-  esbuild: set this to true or false
-
-onlyBuiltDependencies:
-  - "@parcel/watcher"
-  - esbuild
+  "@parcel/watcher": true
+  esbuild: true
