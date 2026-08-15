@@ -1,6 +1,7 @@
 // convex/auth.ts
 //
-// UNRESOLVED DECISION — Convex Auth vs custom users table:
+// OPEN DECISION — Convex Auth vs custom users table.
+// (Unblocked as of ADR-0004; still unmade. See the gate note below.)
 //
 // ARCHITECTURE §3 defines a custom `users` table keyed by `tokenIdentifier`
 // (Google OAuth sub). There are two paths to wire this:
@@ -18,10 +19,23 @@
 //     Simpler OAuth wiring, but the built-in user model may conflict with the
 //     custom `users` table schema above, requiring a migration or adapter layer.
 //
-// DECISION GATE: Tauri OAuth PoC (ARCHITECTURE §8.3 / §13). Until the
-// desktop OAuth callback pattern (deep-link vs localhost) is validated, do NOT
-// fully commit to either option. When the PoC is done, pick one and delete the
-// other path.
+// GATE STATUS — LIFTED, CHOICE NOT YET MADE.
+// The old gate was the Tauri OAuth PoC: "until the desktop callback pattern
+// (deep-link vs localhost) is validated, do NOT commit to either option."
+// That PoC is done and ADR-0004 settled the pattern: loopback server, no
+// custom scheme. ADR-0004 is explicit that this does NOT decide A vs B —
+// "두 갈래 모두 루프백으로 수렴하므로, 이 결정은 auth Option A/B 결정을
+// 기다릴 필요가 없다." So the blocker is gone and the choice is now simply
+// open. Nothing here is waiting on evidence any more.
+//
+// What ADR-0004 pins for whichever option is picked:
+//   Option A — Google applies its Desktop-client rules directly, and loopback
+//     is then the only permitted redirect. No extra work beyond this file.
+//   Option B — `callbacks.redirect` MUST be overridden here. Convex Auth's
+//     default prefix-matches SITE_URL and would reject an arbitrary port like
+//     http://127.0.0.1:51004. That override is an open-redirect surface, so it
+//     is a whitelist ("127.0.0.1, any port") and nothing looser. It does not
+//     exist yet.
 //
 // For now, stubs use Option A (getUserIdentity + custom table lookup).
 //

@@ -117,9 +117,15 @@ export async function getOwned<T extends OwnedTable>(
 }
 
 /**
- * Same check for a reference that may be absent. Optional arguments are where
- * an ownership check is easiest to forget, so the absent case is handled here
- * rather than at each of the six call sites.
+ * Same check for a reference that may be absent.
+ *
+ * On its own this is a thin module — delete it and the call sites just grow an
+ * `if` back, so it is not carrying complexity. It earns its place for a
+ * different reason: **the check stays greppable.** ADR-0002 rests on a missed
+ * ownership check being findable, and `grep getOwned` reaching every one of
+ * them only works while there is a single call shape. Fold this back into
+ * inline `if (x !== undefined)` blocks and the optional references — exactly
+ * the ones easiest to forget — stop showing up in that search.
  */
 export async function getOwnedIfPresent<T extends OwnedTable>(
   ctx: { db: QueryCtx["db"]; owner: Owner },
