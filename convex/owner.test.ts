@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
+import { seedFolder, twoOwners } from "./fixtures.test";
 
 const modules = import.meta.glob("./**/*.*s");
 
@@ -23,24 +24,41 @@ const sources = import.meta.glob("./**/*.ts", {
   eager: true,
 }) as Record<string, string>;
 
-/** The public function builders — using one directly bypasses the wrapper. */
-const RAW_BUILDERS = ["query", "mutation", "action", "httpAction"];
-
 /**
- * Does this file declare Convex functions with the raw builders, i.e. bypass
- * the 소유자 wrapper? `import type { QueryCtx } from "./_generated/server"`
- * does not count — only value imports do. The specifier is matched loosely so
- * that "../_generated/server" from a subdirectory counts too.
+ * Does this file declare Convex functions itself, i.e. bypass the 소유자
+ * wrapper?
+ *
+ * The rule is deliberately blunt: **any value import from `_generated/server`
+ * counts.** A wrapped module gets its builders from `./owner` and needs
+ * nothing from there at runtime, so a value import is already the tell. Naming
+ * the builders instead (`query`, `mutation`, …) would mean maintaining a list
+ * that silently misses whatever Convex adds next — `internalMutation`,
+ * `httpAction`, a namespace import — which is exactly how this check leaked
+ * before. Type-only imports are free; they generate no code.
+ *
+ * Matching is on source text, so it accepts either quote style, any depth of
+ * relative path, and clauses spanning lines. `[^;]` keeps a match from
+ * smearing across a statement boundary into an unrelated import.
  */
 function declaresRawFunctions(src: string): boolean {
   const importRe =
-    /import\s+(type\s+)?\{([^}]*)\}\s+from\s+"[^"]*_generated\/server"/g;
+    /import\s+(type\s+)?([^;]*?)\s+from\s+['"][^'"]*_generated\/server['"]/g;
+
   for (const match of src.matchAll(importRe)) {
-    if (match[1]) continue; // `import type { ... }`
-    const bound = match[2]
-      .split(",")
-      .map((name) => name.trim().split(/\s+as\s+/)[0].trim());
-    if (bound.some((name) => RAW_BUILDERS.includes(name))) return true;
+    if (match[1]) continue; // `import type { ... } from ...`
+
+    // `import { type A, type B } from ...` also generates no code.
+    const named = match[2].match(/^\{([\s\S]*)\}$/);
+    if (named) {
+      const bindings = named[1]
+        .split(",")
+        .map((binding) => binding.trim())
+        .filter(Boolean);
+      if (bindings.length > 0 && bindings.every((b) => /^type\s/.test(b))) {
+        continue;
+      }
+    }
+    return true;
   }
   return false;
 }
@@ -71,49 +89,20 @@ describe("owner resolution", () => {
   });
 
   it("runs the handler with the 소유자 resolved once a record exists", async () => {
-    const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      const ownerId = await ctx.db.insert("users", {
-        tokenIdentifier: "google|owner",
-      });
-      await ctx.db.insert("folders", {
-        userId: ownerId,
-        name: "내 폴더",
-        sortOrder: 0,
-      });
-    });
+    const { t, asMe, me } = await twoOwners();
+    await seedFolder(t, me, "내 폴더");
 
-    const folders = await t
-      .withIdentity({ tokenIdentifier: "google|owner" })
-      .query(api.folders.list, {});
+    const folders = await asMe.query(api.folders.list, {});
 
     expect(folders.map((f) => f.name)).toEqual(["내 폴더"]);
   });
 
   it("scopes results to the 소유자, never another's", async () => {
-    const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      const mine = await ctx.db.insert("users", {
-        tokenIdentifier: "google|owner",
-      });
-      const theirs = await ctx.db.insert("users", {
-        tokenIdentifier: "google|other",
-      });
-      await ctx.db.insert("folders", {
-        userId: mine,
-        name: "내 폴더",
-        sortOrder: 0,
-      });
-      await ctx.db.insert("folders", {
-        userId: theirs,
-        name: "남의 폴더",
-        sortOrder: 0,
-      });
-    });
+    const { t, asMe, me, them } = await twoOwners();
+    await seedFolder(t, me, "내 폴더");
+    await seedFolder(t, them, "남의 폴더");
 
-    const folders = await t
-      .withIdentity({ tokenIdentifier: "google|owner" })
-      .query(api.folders.list, {});
+    const folders = await asMe.query(api.folders.list, {});
 
     expect(folders.map((f) => f.name)).toEqual(["내 폴더"]);
   });
@@ -138,6 +127,38 @@ describe("the wrapper is structural, not a convention", () => {
     expect(declaresRawFunctions(sources["./auth.ts"])).toBe(true);
     expect(declaresRawFunctions(sources["./owner.ts"])).toBe(true);
     expect(declaresRawFunctions(sources["./notes.ts"])).toBe(false);
+  });
+
+  // The audit is only as good as its detector, and the detector reads source
+  // text. These pin the ways a bypass could dress itself up.
+  it.each([
+    ['double quotes', 'import { mutation } from "./_generated/server";'],
+    ['single quotes', "import { mutation } from './_generated/server';"],
+    ['a subdirectory', 'import { query } from "../_generated/server";'],
+    ['an internal builder', 'import { internalMutation } from "./_generated/server";'],
+    ['a namespace import', 'import * as server from "./_generated/server";'],
+    ['a renamed binding', 'import { mutation as m } from "./_generated/server";'],
+    ['a multiline clause', 'import {\n  query,\n  mutation,\n} from "./_generated/server";'],
+  ])("catches a bypass declared with %s", (_label, src) => {
+    expect(declaresRawFunctions(src)).toBe(true);
+  });
+
+  it.each([
+    ['a type-only import', 'import type { QueryCtx } from "./_generated/server";'],
+    ['inline type bindings', 'import { type QueryCtx } from "./_generated/server";'],
+    ['the wrapper module', 'import { ownerQuery } from "./owner";'],
+  ])("does not cry wolf over %s", (_label, src) => {
+    expect(declaresRawFunctions(src)).toBe(false);
+  });
+
+  it("does not smear across statements to accuse an innocent file", () => {
+    const src = [
+      'import { v } from "convex/values";',
+      'import { ownerQuery } from "./owner";',
+      'import type { QueryCtx } from "./_generated/server";',
+    ].join("\n");
+
+    expect(declaresRawFunctions(src)).toBe(false);
   });
 
   it("covers the whole backend, not an empty file list", () => {
