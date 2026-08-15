@@ -173,95 +173,27 @@ zk-note/
 
 ## 3. Convex 데이터베이스 스키마
 
-```typescript
-// convex/schema.ts
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+스키마 원본은 `convex/schema.ts` 하나다. 필드 목록을 여기에 복제하면 반드시 어긋나므로,
+이 문서는 테이블의 **역할과 불변식**만 기록한다.
 
-export default defineSchema({
-  users: defineTable({
-    tokenIdentifier: v.string(), // Google OAuth sub
-    name: v.optional(v.string()),
-    email: v.optional(v.string()),
-    avatarUrl: v.optional(v.string()),
-    settings: v.optional(
-      v.object({
-        theme: v.union(
-          v.literal("light"),
-          v.literal("dark"),
-          v.literal("system"),
-        ),
-        dailyNoteTemplate: v.optional(v.string()), // 마크다운 템플릿
-      }),
-    ),
-  }).index("by_token", ["tokenIdentifier"]),
+| 테이블 | 담는 것 | 소유자 |
+|---|---|---|
+| `users` | 로그인한 사용자. `tokenIdentifier`(Google OAuth sub)로 찾는다 | — (사용자 본인) |
+| `folders` | 노트를 담는 그릇. `parentId` 로 중첩된다 | `userId` |
+| `notes` | 마크다운 본문(`content`)이 원본인 글 한 편 (ADR-0003) | `userId` |
+| `tasks` | 노트와 별개로 존재하는 할 일. `linkedNoteId` 로 노트를 가리킬 수 있다 | `userId` |
+| `attachments` | 노트에 딸린 파일. 실제 바이트는 Convex File Storage | `userId` |
 
-  folders: defineTable({
-    userId: v.id("users"),
-    name: v.string(),
-    parentId: v.optional(v.id("folders")), // null = 루트
-    sortOrder: v.number(),
-  })
-    .index("by_user", ["userId"])
-    .index("by_parent", ["userId", "parentId"]),
+불변식:
 
-  notes: defineTable({
-    userId: v.id("users"),
-    title: v.string(),
-    content: v.string(), // 표준 마크다운 문자열
-    folderId: v.optional(v.id("folders")),
-    tags: v.array(v.string()),
-    linkedNoteIds: v.array(v.id("notes")), // 백링크 계산용
-    isDailyNote: v.boolean(),
-    dailyNoteDate: v.optional(v.string()), // YYYY-MM-DD (Daily Note만)
-    updatedAt: v.number(),
-    createdAt: v.number(),
-  })
-    .index("by_user", ["userId"])
-    .index("by_folder", ["userId", "folderId"])
-    .index("by_daily_date", ["userId", "isDailyNote", "dailyNoteDate"])
-    .index("by_updated", ["userId", "updatedAt"])
-    .searchIndex("search_notes", {
-      searchField: "content",
-      filterFields: ["userId", "tags"],
-    }),
+- **모든 문서는 정확히 한 명의 소유자를 가진다.** `users` 를 뺀 네 테이블 전부에
+  `userId` 가 있고, 백엔드 함수는 소유자 module 을 통과해야만 이 문서들에 닿는다
+  (ADR-0002).
+- 저장된 파일에는 소유자 필드가 없다. 그 파일을 가리키는 `attachments` 레코드가
+  소유자를 정하므로, 이미 남이 claim 한 `storageId` 는 거절한다(`by_storage` 인덱스).
+- 데일리 노트는 날짜가 정체성이라 만들어진 뒤 `dailyNoteDate` 가 바뀌지 않는다.
 
-  tasks: defineTable({
-    userId: v.id("users"),
-    title: v.string(),
-    status: v.union(
-      v.literal("todo"),
-      v.literal("in_progress"),
-      v.literal("done"),
-    ),
-    detail: v.optional(v.string()), // 마크다운 (토글 상세 내용)
-    dueDate: v.optional(v.string()), // YYYY-MM-DD
-    tags: v.array(v.string()),
-    linkedNoteId: v.optional(v.id("notes")), // 생성된 노트 참조
-    linkedDate: v.optional(v.string()), // Daily Note 날짜
-    sortOrder: v.number(),
-    updatedAt: v.number(),
-    createdAt: v.number(),
-  })
-    .index("by_user", ["userId"])
-    .index("by_status", ["userId", "status"])
-    .index("by_due_date", ["userId", "dueDate"])
-    .index("by_linked_date", ["userId", "linkedDate"])
-    .index("by_linked_note", ["linkedNoteId"]),
-
-  attachments: defineTable({
-    userId: v.id("users"),
-    noteId: v.id("notes"),
-    storageId: v.id("_storage"), // Convex File Storage
-    fileName: v.string(),
-    mimeType: v.string(),
-    size: v.number(),
-    createdAt: v.number(),
-  }).index("by_note", ["noteId"]),
-});
-```
-
-> **주의 — `notes.content` 의존성**: 위 스키마는 "마크다운 = source of truth"(§10.1 안 A) 전제다. `prosemirror-sync`(안 B)를 채택하면 노트 본문이 `notes.content`를 떠나 컴포넌트 테이블로 이동하므로, `content` 필드·`search_notes` 인덱스가 "스냅샷에서 추출한 텍스트" 기반으로 재설계된다. PoC 결정(§10.1) 전까지 본 스키마는 잠정안.
+> **`notes.content` 의존성 — 결정됨**: §10.1 의 갈림길은 ADR-0003 으로 닫혔다. 안 A(마크다운 = source of truth)를 택했으므로 `content` 필드와 `search_notes` 인덱스는 잠정안이 아니다. 뒤집으려면 ADR-0003 의 "이 결정을 뒤집어야 할 신호"를 먼저 확인할 것.
 
 ---
 
@@ -396,58 +328,26 @@ Mark.create({
 
 ### 인터페이스 정의
 
-```typescript
-// src/lib/platform/types.ts
-export interface PlatformAdapter {
-  kind: "tauri" | "web";
+인터페이스 원본은 `src/lib/platform/types.ts` 하나다. 여기에 옮겨 적지 않는다 —
+사본은 코드보다 먼저 낡는다. 지켜야 할 성질만 남긴다:
 
-  // OAuth: 데스크탑은 deep link / localhost 콜백, 웹은 redirect
-  startOAuthFlow(provider: "google"): Promise<void>;
-
-  // 외부 링크 열기: 데스크탑은 OS 기본 브라우저, 웹은 window.open
-  openExternal(url: string): Promise<void>;
-
-  // 파일 다운로드 (Export): 데스크탑은 OS save dialog, 웹은 anchor download
-  saveFile(name: string, data: Blob): Promise<void>;
-
-  // 윈도우/메뉴 통합: 데스크탑만 의미 있음
-  setWindowTitle?(title: string): void;
-  registerMenuHandler?(id: string, handler: () => void): void;
-
-  // 향후 확장 (Phase 2~3, 데스크탑 전용)
-  registerGlobalShortcut?(
-    accelerator: string,
-    handler: () => void,
-  ): Promise<void>;
-  spawnTerminal?(opts: TerminalOptions): Promise<TerminalHandle>;
-}
-```
+- 모든 멤버는 **필수**이며 `tauri`·`web` 양쪽에 실제 구현이 있다. 호출부는
+  `platform.method?.()` 로 방어하지 않는다.
+- 이 경계를 사이에 두고 **실제로 달라지는 것만** 멤버가 된다. 구현이나 호출부가 없던
+  시그니처(메뉴 핸들러·전역 단축키·내장 터미널, 그리고 양쪽 다 throw 하던
+  `startOAuthFlow`, 웹 구현이 없던 `setWindowTitle`)는 모두 제거했다. 두 번째 어댑터가
+  생기는 시점에 다시 넣는다.
+- **OAuth 는 지금 이 경계에 없다.** ADR-0004 는 `tauri.ts` 의 `startOAuthFlow` 스텁을
+  루프백 흐름이 채울 자리로 지목했지만 그 스텁은 지워졌다. 웹(#4)·데스크탑(#5) 로그인을
+  구현할 때 이 경계로 **되돌아온다** — ADR-0004 가 "웹과 갈라지는 곳은 브라우저를 어떻게
+  여는가와 `?code=` 를 어디서 줍는가 두 군데뿐"이라고 적은 그 두 곳이 여기다.
+  커스텀 스킴 딥링크는 쓰지 않는다.
 
 ### 런타임 분기
 
-```typescript
-// src/lib/platform/index.ts
-import type { PlatformAdapter } from "./types";
-
-let adapter: PlatformAdapter | null = null;
-
-export async function getPlatform(): Promise<PlatformAdapter> {
-  if (adapter) return adapter;
-
-  const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
-  if (isTauri) {
-    adapter = (await import("./tauri")).createTauriAdapter();
-  } else {
-    adapter = (await import("./web")).createWebAdapter();
-  }
-  return adapter;
-}
-
-// React 훅
-export function usePlatform(): PlatformAdapter {
-  /* ... */
-}
-```
+`src/lib/platform/index.tsx` 의 `getPlatform()` 이 `window.__TAURI__` 유무로 어댑터를
+골라 한 번만 만들고 캐시한다. 생성이 실패하면 진행 중이던 약속을 비워 다음 호출이 다시
+시도한다 — 그 재시도 동작은 `__tests__/index.test.ts` 가 고정한다.
 
 ### 사용 예 (UI 컴포넌트는 플랫폼을 인지하지 않음)
 

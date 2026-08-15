@@ -1,58 +1,59 @@
 // convex/notes.ts
 //
-// ⚠️ SECURITY TODO (tracked: Task 4 — gated on auth PoC, see auth.ts):
-// These are STUBS with NO authorization. `list` and `search` take a
-// caller-supplied `userId` with no verification — any caller can read
-// another user's notes. `update` and `remove` patch/delete by ID
-// without confirming the caller owns the document.
-// Before exposing to real multi-user data: derive the user from
-// ctx.auth.getUserIdentity() (ignore the userId arg on reads) and on every
-// patch/delete do ctx.db.get(id) + throw if doc.userId !== me._id.
+// Every function here is declared with the 소유자 wrapper (ADR-0002), so the
+// owner is already resolved when a handler body starts. Notes are reached
+// through `getOwned`, which also covers the references handed in as arguments
+// — the 폴더 a note belongs to, and the 노트 it links to.
 //
 // NOTE — content field dependency: all read/write paths here treat
-// notes.content as the markdown source of truth (§10.1 Option A).
-// If the editor PoC picks Option B (prosemirror-sync), this file will
-// be updated once that decision is made.
+// notes.content as the markdown source of truth (§10.1 Option A, settled in
+// ADR-0003).
 
-import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
+import {
+  getOwned,
+  getOwnedIfPresent,
+  ownerMutation,
+  ownerQuery,
+} from "./owner";
+import { LIST_LIMIT, SEARCH_LIMIT } from "./limits";
 
-/** List notes for the authenticated user, optionally filtered by folder. */
-export const list = query({
+/** List 노트 for the 소유자, optionally filtered by 폴더. */
+export const list = ownerQuery({
   args: {
-    userId: v.id("users"),
     folderId: v.optional(v.id("folders")),
   },
   handler: async (ctx, args) => {
     if (args.folderId !== undefined) {
+      await getOwned(ctx, "folders", args.folderId);
       return await ctx.db
         .query("notes")
         .withIndex("by_folder", (q) =>
-          q.eq("userId", args.userId).eq("folderId", args.folderId),
+          q.eq("userId", ctx.owner._id).eq("folderId", args.folderId),
         )
         .order("desc")
-        .collect();
+        .take(LIST_LIMIT);
     }
     return await ctx.db
       .query("notes")
-      .withIndex("by_updated", (q) => q.eq("userId", args.userId))
+      .withIndex("by_updated", (q) => q.eq("userId", ctx.owner._id))
       .order("desc")
-      .collect();
+      .take(LIST_LIMIT);
   },
 });
 
-/** Get a single note by ID. */
-export const get = query({
+/** Get a single 노트 by ID. */
+export const get = ownerQuery({
   args: { noteId: v.id("notes") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.noteId);
+    return await getOwned(ctx, "notes", args.noteId);
   },
 });
 
-/** Create a new note. */
-export const create = mutation({
+/** Create a new 노트. */
+export const create = ownerMutation({
   args: {
-    userId: v.id("users"),
     title: v.string(),
     content: v.string(),
     folderId: v.optional(v.id("folders")),
@@ -61,9 +62,11 @@ export const create = mutation({
     dailyNoteDate: v.optional(v.string()), // YYYY-MM-DD
   },
   handler: async (ctx, args) => {
+    await getOwnedIfPresent(ctx, "folders", args.folderId);
+
     const now = Date.now();
     return await ctx.db.insert("notes", {
-      userId: args.userId,
+      userId: ctx.owner._id,
       title: args.title,
       content: args.content,
       folderId: args.folderId,
@@ -72,15 +75,14 @@ export const create = mutation({
       isDailyNote: args.isDailyNote ?? false,
       dailyNoteDate: args.dailyNoteDate,
       updatedAt: now,
-      createdAt: now,
     });
   },
 });
 
-/** Update note content and/or title. Bumps updatedAt. */
+/** Update 노트 content and/or title. Bumps updatedAt. */
 // `isDailyNote` and `dailyNoteDate` are intentionally NOT updatable here —
 // daily-note identity is immutable after creation (see REQUIREMENTS §5.2).
-export const update = mutation({
+export const update = ownerMutation({
   args: {
     noteId: v.id("notes"),
     title: v.optional(v.string()),
@@ -90,51 +92,58 @@ export const update = mutation({
     linkedNoteIds: v.optional(v.array(v.id("notes"))),
   },
   handler: async (ctx, args) => {
-    const { noteId, ...fields } = args;
-    const patch: Record<string, unknown> = { updatedAt: Date.now() };
-    if (fields.title !== undefined) patch.title = fields.title;
-    if (fields.content !== undefined) patch.content = fields.content;
-    if (fields.folderId !== undefined) patch.folderId = fields.folderId;
-    if (fields.tags !== undefined) patch.tags = fields.tags;
-    if (fields.linkedNoteIds !== undefined)
-      patch.linkedNoteIds = fields.linkedNoteIds;
-    await ctx.db.patch(noteId, patch);
+    const note = await getOwned(ctx, "notes", args.noteId);
+    await getOwnedIfPresent(ctx, "folders", args.folderId);
+    for (const linkedNoteId of args.linkedNoteIds ?? []) {
+      await getOwned(ctx, "notes", linkedNoteId);
+    }
+
+    const patch: Partial<Doc<"notes">> = { updatedAt: Date.now() };
+    if (args.title !== undefined) patch.title = args.title;
+    if (args.content !== undefined) patch.content = args.content;
+    if (args.folderId !== undefined) patch.folderId = args.folderId;
+    if (args.tags !== undefined) patch.tags = args.tags;
+    if (args.linkedNoteIds !== undefined)
+      patch.linkedNoteIds = args.linkedNoteIds;
+    await ctx.db.patch(note._id, patch);
   },
 });
 
-/** Delete a note by ID. */
-export const remove = mutation({
+/** Delete a 노트 by ID. */
+export const remove = ownerMutation({
   args: { noteId: v.id("notes") },
   handler: async (ctx, args) => {
-    await ctx.db.delete(args.noteId);
+    const note = await getOwned(ctx, "notes", args.noteId);
+    await ctx.db.delete(note._id);
   },
 });
 
 /**
- * Full-text search over note content, filtered by userId.
+ * Full-text search over 노트 content, scoped to the 소유자.
  * Optionally filter by a single tag (Convex search index supports one
  * filter field per query call).
  */
-export const search = query({
+export const search = ownerQuery({
   args: {
-    userId: v.id("users"),
     query: v.string(),
     tag: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let searchQuery = ctx.db
+    const results = await ctx.db
       .query("notes")
-      .withSearchIndex("search_notes", (q) => {
-        const base = q.search("content", args.query).eq("userId", args.userId);
-        return base;
-      });
-
-    const results = await searchQuery.collect();
+      .withSearchIndex("search_notes", (q) =>
+        q.search("content", args.query).eq("userId", ctx.owner._id),
+      )
+      // Bounded by relevance order: the tag filter below narrows this page,
+      // it does not reach past it.
+      .take(SEARCH_LIMIT);
 
     // If a tag filter was requested, apply it in memory (Convex search index
     // supports array field filter only as an existence check, not element match).
-    if (args.tag) {
-      return results.filter((n) => n.tags.includes(args.tag!));
+    // An empty string counts as "no filter", as it always has.
+    const tag = args.tag;
+    if (tag) {
+      return results.filter((n) => n.tags.includes(tag));
     }
     return results;
   },

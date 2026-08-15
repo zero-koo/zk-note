@@ -1,5 +1,5 @@
 /**
- * Carries the update UX contract decided in ticket #19:
+ * Carries the update UX contract decided in ADR-0006:
  *
  *   - Check once per app start, in the foreground. No polling timer.
  *   - On a hit, announce the version and wait for the user to accept.
@@ -9,15 +9,17 @@
  *   - On failure, log and carry on silently. The next start retries, so there
  *     is nothing for the user to act on.
  *
- * Renders nothing on web: `checkForUpdate` is a desktop-only optional method,
- * so the guarded call is a no-op there.
+ * Renders nothing on web: the web adapter's `checkForUpdate` always answers
+ * `null`, so this component asks every platform the same question and simply
+ * never has anything to show in a browser.
  */
 
+import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
-import { usePlatform } from "../lib/platform";
-import type { PendingUpdate } from "../lib/platform/types";
+import { usePlatform } from "~/lib/platform";
+import type { PendingUpdate } from "~/lib/platform/types";
 
-export function UpdatePrompt() {
+export function UpdatePrompt(): ReactElement | null {
   const platform = usePlatform();
   const [update, setUpdate] = useState<PendingUpdate | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -27,7 +29,7 @@ export function UpdatePrompt() {
     let cancelled = false;
     void (async () => {
       try {
-        const found = await platform.checkForUpdate?.();
+        const found = await platform.checkForUpdate();
         if (!cancelled && found) setUpdate(found);
       } catch (err) {
         // Offline, endpoint unreachable, signature mismatch — the user can act
@@ -45,21 +47,10 @@ export function UpdatePrompt() {
   return (
     <div
       role="status"
-      style={{
-        position: "fixed",
-        insetInline: 0,
-        bottom: 0,
-        display: "flex",
-        alignItems: "center",
-        gap: "0.75rem",
-        padding: "0.75rem 1rem",
-        background: "rgba(127,127,127,0.14)",
-        borderTop: "1px solid rgba(127,127,127,0.3)",
-        backdropFilter: "blur(8px)",
-        fontSize: "0.875rem",
-      }}
+      data-testid="update-prompt"
+      className="fixed inset-x-0 bottom-0 flex items-center gap-3 border-t border-strong bg-surface-subtle px-4 py-3 text-sm"
     >
-      <span style={{ flex: 1 }}>
+      <span className="flex-1">
         새 버전 <strong>{update.version}</strong> 이 있습니다.
         {installing ? " 설치 중 — 잠시 후 앱이 다시 시작됩니다." : null}
       </span>
@@ -76,7 +67,7 @@ export function UpdatePrompt() {
             setInstalling(false);
           });
         }}
-        style={{ padding: "0.35rem 0.75rem", cursor: installing ? "wait" : "pointer" }}
+        className="rounded bg-accent px-3 py-1.5 text-surface hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
       >
         지금 설치
       </button>
@@ -85,7 +76,7 @@ export function UpdatePrompt() {
         type="button"
         disabled={installing}
         onClick={() => setDismissed(true)}
-        style={{ padding: "0.35rem 0.75rem", cursor: "pointer" }}
+        className="rounded border border-strong px-3 py-1.5 hover:bg-surface-muted disabled:opacity-60"
       >
         나중에
       </button>

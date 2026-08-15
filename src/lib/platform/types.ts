@@ -4,25 +4,20 @@
  * platform-specific APIs directly; they go through this interface via
  * `usePlatform()`.
  *
- * Naming convention:
- *   - Required methods: available on both "tauri" and "web".
- *   - Optional methods (`?`): desktop-only or Phase 2/3 — may be undefined on
- *     web; callers must guard with `platform.method?.()`.
+ * The interface carries only what BOTH adapters actually implement today.
+ * Future capabilities (OAuth flow, window title, menus, global shortcuts,
+ * embedded terminal — see ARCHITECTURE §8 and Phase 2/3) are added by the
+ * ticket that first consumes them, together with their real implementations.
  */
-
-// ---------------------------------------------------------------------------
-// Auto-update helper types (desktop-only — signature only, implemented in the
-// release-channel work)
-// ---------------------------------------------------------------------------
 
 /**
  * A newer version found on the update channel, plus the action that applies it.
  *
- * Modelled as a handle (like `TerminalHandle`) rather than a plain data object
- * so the adapter doesn't have to stash the in-flight update between two calls.
+ * Modelled as a handle rather than a plain data object so the adapter doesn't
+ * have to stash the in-flight update between two calls.
  */
 export interface PendingUpdate {
-  /** Semver of the available update, e.g. `"0.1.1"`. */
+  /** Semver of the available update, e.g. `"0.1.2"`. */
   version: string;
   /** Release notes from the manifest, when present. */
   notes?: string;
@@ -39,42 +34,9 @@ export interface PendingUpdate {
   installAndRelaunch(): Promise<void>;
 }
 
-// ---------------------------------------------------------------------------
-// Phase 2/3 helper types (desktop-only, YAGNI — signatures only for now)
-// ---------------------------------------------------------------------------
-
-export interface TerminalOptions {
-  /** Working directory for the spawned terminal process. */
-  cwd?: string;
-  /** Environment variables to inject. */
-  env?: Record<string, string>;
-}
-
-export interface TerminalHandle {
-  /** Write raw text to the terminal's stdin. */
-  write(data: string): Promise<void>;
-  /** Kill the terminal process. */
-  kill(): Promise<void>;
-  /** Fired when the process produces output. */
-  onData(callback: (data: string) => void): () => void;
-}
-
-// ---------------------------------------------------------------------------
-// Core interface
-// ---------------------------------------------------------------------------
-
 export interface PlatformAdapter {
   /** Discriminator — lets call-sites branch without `instanceof`. */
   kind: "tauri" | "web";
-
-  /**
-   * Kick off a platform-appropriate OAuth flow.
-   * - Desktop (Tauri): temporary loopback server on `http://127.0.0.1:<port>`
-   *   (ADR-0004). The auth page MUST open in the system browser, never in the
-   *   WebView — Google rejects WKWebView with `disallowed_useragent`.
-   * - Web: redirect to provider.
-   */
-  startOAuthFlow(provider: "google"): Promise<void>;
 
   /**
    * Open a URL in the user's default browser.
@@ -90,51 +52,24 @@ export interface PlatformAdapter {
    */
   saveFile(name: string, data: Blob): Promise<void>;
 
-  // -------------------------------------------------------------------------
-  // Desktop-only (optional — undefined on web)
-  // -------------------------------------------------------------------------
-
-  /** Update the OS window title bar. Desktop only. */
-  setWindowTitle?(title: string): void;
-
   /**
-   * Ask the update channel whether a newer version exists.
+   * Ask the update channel whether a newer version exists (ADR-0006).
+   * Returns `null` when already up to date.
    *
-   * Returns `null` when already up to date. Rejects only on unexpected errors;
-   * routine failures (offline, endpoint unreachable) are the caller's to
-   * swallow — see the UX contract below.
+   * - Desktop: queries the manifest at `plugins.updater.endpoints`.
+   * - Web: always `null`. The browser has nothing to self-update, and saying so
+   *   here keeps the caller free of platform branches.
    *
-   * UX contract (decided alongside the release channel):
+   * Rejects only on unexpected errors; routine failures (offline, endpoint
+   * unreachable) are the caller's to swallow — see the UX contract below.
+   *
+   * UX contract:
    *   - Called once per app start, in the foreground. No polling timer.
    *   - On a hit, the UI announces the version and waits for the user to accept
    *     before calling `installAndRelaunch()`. Never auto-apply — a note editor
    *     that restarts mid-edit loses work.
    *   - On failure, log and carry on silently. The next app start retries, so
    *     there is nothing for the user to act on.
-   *
-   * Desktop only.
    */
-  checkForUpdate?(): Promise<PendingUpdate | null>;
-
-  /**
-   * Register a handler for a native application-menu item.
-   * @param id  Menu item identifier as defined in `src-tauri/src/menu.rs`.
-   * Desktop only. Phase 2.
-   */
-  registerMenuHandler?(id: string, handler: () => void): void;
-
-  /**
-   * Register a global (system-wide) keyboard shortcut.
-   * Desktop only. Phase 2.
-   */
-  registerGlobalShortcut?(
-    accelerator: string,
-    handler: () => void,
-  ): Promise<void>;
-
-  /**
-   * Spawn an embedded terminal panel.
-   * Desktop only. Phase 3.
-   */
-  spawnTerminal?(opts: TerminalOptions): Promise<TerminalHandle>;
+  checkForUpdate(): Promise<PendingUpdate | null>;
 }

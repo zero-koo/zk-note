@@ -6,9 +6,9 @@ export const Route = createFileRoute("/notes/")({
 
 function NotesIndexPage() {
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Notes</h1>
-      <p style={{ color: "var(--color-text-muted)" }}>Coming soon.</p>
+    <main className="p-8">
+      <h1 className="text-2xl font-bold">Notes</h1>
+      <p className="text-muted">Coming soon.</p>
     </main>
   );
 }

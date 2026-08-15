@@ -49,16 +49,22 @@ let _pending: Promise<PlatformAdapter> | null = null;
 // ---------------------------------------------------------------------------
 
 function isTauri(): boolean {
-  // Tauri v2 sets `globalThis.isTauri` in every WebView it owns — this is what
-  // the official `isTauri()` helper in @tauri-apps/api/core checks. We inline it
-  // rather than importing, so the web bundle pulls in no Tauri code.
+  // Three markers, any of which means we are inside a Tauri WebView:
+  //   - `globalThis.isTauri` — what the official isTauri() helper in
+  //     @tauri-apps/api/core checks. Inlined rather than imported so the web
+  //     bundle pulls in no Tauri code.
+  //   - `__TAURI_INTERNALS__` — always injected by Tauri 2; this is the one that
+  //     carries a packaged build.
+  //   - `__TAURI__` — only when `app.withGlobalTauri` is enabled (it is not).
   //
-  // Do NOT go back to `window.__TAURI__`: that global only exists when
-  // `app.withGlobalTauri` is enabled in tauri.conf.json, and it is not. Checking
-  // for it makes isTauri() always false, which silently loads the WEB adapter
-  // inside the desktop app — every desktop-only method then becomes an
-  // undefined no-op behind its `?.()` guard, with no error anywhere.
-  return Boolean((globalThis as { isTauri?: boolean }).isTauri);
+  // Checking `__TAURI__` ALONE is the bug this replaced: it made isTauri()
+  // always false, so the desktop app silently ran the WEB adapter and every
+  // desktop-only path quietly did nothing, with no error anywhere.
+  if ((globalThis as { isTauri?: boolean }).isTauri) return true;
+  return (
+    typeof window !== "undefined" &&
+    ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -103,9 +109,20 @@ const PlatformContext = createContext<PlatformAdapter | null>(null);
 
 interface PlatformProviderProps {
   children: ReactNode;
-  /** Optional fallback rendered while the adapter resolves (default: null). */
+  /**
+   * Rendered while the adapter resolves. The default says something visible on
+   * purpose: a blank screen is indistinguishable from a dead app, which is the
+   * failure mode the bootstrap ticket set out to prevent. Pass your own to
+   * match a screen's layout — but prefer replacing it over blanking it.
+   */
   fallback?: ReactNode;
 }
+
+const DEFAULT_FALLBACK = (
+  <div role="status" className="p-4 text-muted">
+    Starting up…
+  </div>
+);
 
 /**
  * Resolves the platform adapter on mount and provides it to the React tree.
@@ -115,7 +132,7 @@ interface PlatformProviderProps {
  */
 export function PlatformProvider({
   children,
-  fallback = null,
+  fallback = DEFAULT_FALLBACK,
 }: PlatformProviderProps): ReactElement | null {
   const [adapter, setAdapter] = useState<PlatformAdapter | null>(
     // If already resolved (e.g. hot-reload), use it immediately.
@@ -142,7 +159,7 @@ export function PlatformProvider({
 
   if (error !== null) {
     return (
-      <div role="alert" style={{ padding: "1rem", color: "red" }}>
+      <div role="alert" className="p-4 text-danger">
         Failed to initialise platform adapter: {error.message}
       </div>
     ) as ReactElement;

@@ -5,9 +5,10 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { ConvexClientProvider } from "~/lib/convex";
+import { PlatformProvider } from "~/lib/platform";
+import { UpdatePrompt } from "~/components/UpdatePrompt";
 import "../styles/globals.css";
-import { PlatformProvider } from "../lib/platform";
-import { UpdatePrompt } from "../components/UpdatePrompt";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -23,10 +24,15 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <RootDocument>
-      {/* The provider gates rendering until the adapter resolves, so everything
-          below it can call usePlatform() synchronously. */}
+      {/* PlatformProvider outermost: the platform adapter must resolve even
+          when the Convex URL is missing/invalid (AC #2 holds independently
+          of AC #5's error screen). UpdatePrompt sits inside it (it needs
+          usePlatform) but outside Convex — the update channel shares no data
+          or auth with the backend (ADR-0006). */}
       <PlatformProvider>
-        <Outlet />
+        <ConvexClientProvider>
+          <Outlet />
+        </ConvexClientProvider>
         <UpdatePrompt />
       </PlatformProvider>
     </RootDocument>

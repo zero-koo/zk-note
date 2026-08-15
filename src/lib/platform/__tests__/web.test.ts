@@ -90,30 +90,14 @@ describe("createWebAdapter", () => {
     });
   });
 
-  describe("startOAuthFlow", () => {
-    it("throws a not-implemented error", async () => {
+  describe("checkForUpdate", () => {
+    // The web build must never self-update. Answering null (rather than
+    // omitting the method) is what lets UpdatePrompt ask every platform the
+    // same question — if this ever returns an update, the browser would start
+    // offering to install one.
+    it("always reports no update available", async () => {
       const adapter = createWebAdapter();
-      await expect(adapter.startOAuthFlow("google")).rejects.toThrow(
-        /not yet implemented/i,
-      );
-    });
-  });
-
-  describe("desktop-only methods", () => {
-    // Callers reach these through `platform.method?.()`. Leaving them undefined
-    // on web is what makes that guard a no-op in the browser — if one ever
-    // gains a web implementation, the guard silently starts firing.
-    it("leaves checkForUpdate undefined so the web build never self-updates", () => {
-      const adapter = createWebAdapter();
-      expect(adapter.checkForUpdate).toBeUndefined();
-    });
-
-    it("leaves the remaining desktop-only methods undefined", () => {
-      const adapter = createWebAdapter();
-      expect(adapter.setWindowTitle).toBeUndefined();
-      expect(adapter.registerMenuHandler).toBeUndefined();
-      expect(adapter.registerGlobalShortcut).toBeUndefined();
-      expect(adapter.spawnTerminal).toBeUndefined();
+      await expect(adapter.checkForUpdate()).resolves.toBeNull();
     });
   });
 });

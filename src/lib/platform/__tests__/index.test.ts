@@ -15,10 +15,13 @@ describe("getPlatform", () => {
   });
 
   afterEach(() => {
+    // Clean up any Tauri global stubs added in a test.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (globalThis as any).isTauri;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (window as any).__TAURI__;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (window as any).__TAURI_INTERNALS__;
     vi.restoreAllMocks();
   });
 
@@ -53,14 +56,16 @@ describe("getPlatform", () => {
     expect(adapter.kind).toBe("tauri");
   });
 
-  // Regression: detection used to key off window.__TAURI__, which Tauri v2 only
-  // injects when app.withGlobalTauri is enabled (it is not). That made isTauri()
-  // always false, so the desktop app silently ran the WEB adapter and every
-  // desktop-only method became an undefined no-op behind its `?.()` guard —
-  // no error, no log, just a feature that never fired.
-  it("does not treat window.__TAURI__ alone as Tauri", async () => {
+  // Regression: detection used to key off window.__TAURI__ ALONE, which Tauri 2
+  // only injects when app.withGlobalTauri is enabled (it is not). That made
+  // isTauri() always false, so the desktop app silently ran the WEB adapter and
+  // every desktop-only path quietly did nothing — no error, no log. This is the
+  // marker a packaged build actually carries, so it is the one that must work.
+  it('returns a tauri adapter when only window.__TAURI_INTERNALS__ is present (packaged build without withGlobalTauri)', async () => {
+    // Tauri 2 always injects __TAURI_INTERNALS__; __TAURI__ exists only when
+    // app.withGlobalTauri is enabled in tauri.conf.json (it is not here).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__TAURI__ = {};
+    (window as any).__TAURI_INTERNALS__ = {};
 
     vi.doMock("../web", () => ({
       createWebAdapter: () => ({ kind: "web" }),
@@ -71,7 +76,7 @@ describe("getPlatform", () => {
 
     const { getPlatform } = await import("../index");
     const adapter = await getPlatform();
-    expect(adapter.kind).toBe("web");
+    expect(adapter.kind).toBe("tauri");
   });
 
   it("returns the same instance on repeated calls (singleton)", async () => {

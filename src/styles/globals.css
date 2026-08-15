@@ -1,92 +1,67 @@
 @import "tailwindcss";
 
-/* ─── Design tokens (light mode) ─── */
-:root {
-  --color-bg: #ffffff;
-  --color-bg-subtle: #f9fafb;
-  --color-bg-muted: #f3f4f6;
-  --color-border: #e5e7eb;
-  --color-border-strong: #d1d5db;
+/* ─── Design tokens ───────────────────────────────────────────────────────
+ * Semantic tokens promoted into Tailwind's @theme so they generate
+ * utilities (bg-surface, text-muted, border-strong, …). Each value is
+ * defined ONCE via light-dark() — the browser picks the side from
+ * color-scheme, so there is no duplicated dark-mode block. A future theme
+ * toggle only has to set .dark / .light (see below).
+ */
+@theme {
+  --color-surface: light-dark(#ffffff, #111827);
+  --color-surface-subtle: light-dark(#f9fafb, #1f2937);
+  --color-surface-muted: light-dark(#f3f4f6, #374151);
 
-  --color-text: #111827;
-  --color-text-muted: #6b7280;
-  --color-text-subtle: #9ca3af;
+  --color-border: light-dark(#e5e7eb, #374151);
+  --color-border-strong: light-dark(#d1d5db, #4b5563);
 
-  --color-accent: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --color-accent-subtle: #eff6ff;
+  --color-foreground: light-dark(#111827, #f9fafb);
+  --color-muted: light-dark(#6b7280, #9ca3af);
+  --color-subtle: light-dark(#9ca3af, #6b7280);
 
-  --color-sidebar-bg: #f9fafb;
-  --color-sidebar-width: 260px;
-  --color-panel-width: 280px;
+  --color-accent: light-dark(#2563eb, #3b82f6);
+  --color-accent-hover: light-dark(#1d4ed8, #2563eb);
+  --color-accent-subtle: light-dark(#eff6ff, #1e3a5f);
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --color-sidebar: light-dark(#f9fafb, #1f2937);
 
+  --color-danger: light-dark(#dc2626, #f87171);
+
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 }
 
-/* ─── Dark mode ─── */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #111827;
-    --color-bg-subtle: #1f2937;
-    --color-bg-muted: #374151;
-    --color-border: #374151;
-    --color-border-strong: #4b5563;
+/* Layout constants (not colors — plain custom properties, no utilities). */
+:root {
+  --sidebar-width: 260px;
+  --panel-width: 280px;
 
-    --color-text: #f9fafb;
-    --color-text-muted: #9ca3af;
-    --color-text-subtle: #6b7280;
-
-    --color-accent: #3b82f6;
-    --color-accent-hover: #2563eb;
-    --color-accent-subtle: #1e3a5f;
-
-    --color-sidebar-bg: #1f2937;
-  }
+  /* Follow the OS by default; .dark / .light below override for a toggle. */
+  color-scheme: light dark;
 }
 
-/* Support class-based dark mode (for future theme toggle) */
 .dark {
-  --color-bg: #111827;
-  --color-bg-subtle: #1f2937;
-  --color-bg-muted: #374151;
-  --color-border: #374151;
-  --color-border-strong: #4b5563;
-
-  --color-text: #f9fafb;
-  --color-text-muted: #9ca3af;
-  --color-text-subtle: #6b7280;
-
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
-  --color-accent-subtle: #1e3a5f;
-
-  --color-sidebar-bg: #1f2937;
+  color-scheme: dark;
+}
+.light {
+  color-scheme: light;
 }
 
-/* ─── Base reset ─── */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+/* ─── Base ────────────────────────────────────────────────────────────────
+ * Tailwind preflight already handles box-sizing and margin resets.
+ */
+@layer base {
+  html,
+  body {
+    height: 100%;
+    background-color: var(--color-surface);
+    color: var(--color-foreground);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
 
-html,
-body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-
-#app-root {
-  height: 100%;
+  #app-root {
+    height: 100%;
+  }
 }
